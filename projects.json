@@ -1,0 +1,18 @@
+[
+    [
+        {
+            "project": "shared-infra",
+            "releaseDefinitionId": "5",
+            "children": [
+                {
+                    "project": "ParserAsServiceApi",
+                    "releaseDefinitionId": "3"
+                },
+                {
+                    "project": "ParserAsServiceApi",
+                    "releaseDefinitionId": "2"
+                }
+            ]
+        }
+    ]
+]
