@@ -23,7 +23,9 @@
   },
   "variables": {
     "Get Secret App Name": "get-secret-app",
-    "Get Projects App Name": "get-projects-app"
+    "Rebuild Dev App Name": "rebuild-dev-app",
+    "Rebuild Dev Blue App Name": "rebuild-dev-blue-app",
+    "Rebuild Dev Green App Name": "rebuild-dev-green-app"
   },
   "resources": [
     {
@@ -239,7 +241,7 @@
       }
     },
     {
-      "name": "[variables('Get Projects App Name')]",
+      "name": "[variables('Rebuild Dev App Name')]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
@@ -249,22 +251,68 @@
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
-            "Test": {
-              "inputs": "[parameters('projectConfig')]",
-              "runAfter": {
-                "HTTP": [
-                  "Succeeded"
-                ]
-              },
-              "type": "Compose"
-            },
-            "HTTP": {
+            "response-accepted": {
               "inputs": {
-                "method": "GET",
-                "uri": "https://vplsharedinfradevops.blob.core.windows.net/configs/projects.json"
+                "body": {
+                  "value": 42
+                },
+                "statusCode": 202
+              },
+              "kind": "http",
+              "runAfter": {},
+              "type": "Response"
+            }},
+          "contentVersion": "1.0.0.0",
+          "outputs": {},
+          "parameters": {},
+          "triggers": {
+            "http-post": {
+              "inputs": {
+                "method": "POST",
+                "schema": {
+                  "properties": {
+                    "colour": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "kind": "Http",
+              "type": "Request"
+            }
+          }
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "name": "[variables('Rebuild Dev Blue App Name')]",
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2017-07-01",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('Rebuild Dev App Name'))]"
+      ],
+      "tags": {},
+      "properties": {
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "actions": {
+            "rebuild-dev-app": {
+              "inputs": {
+                "body": {
+                  "colour": "blue"
+                },
+                "host": {
+                  "triggerName": "http-post",
+                  "workflow": {
+                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Rebuild Dev App Name'))]"
+                  }
+                }
               },
               "runAfter": {},
-              "type": "Http"
+              "type": "Workflow"
             }
           },
           "contentVersion": "1.0.0.0",
