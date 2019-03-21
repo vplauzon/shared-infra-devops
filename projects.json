@@ -1,21 +1,27 @@
 [
-    [
-        {
-            "release": "shared-infra",
-            "project": "shared-infra",
-            "releaseDefinitionId": "5"
-        }
-    ],
-    [
-        {
-            "release": "PAS API",
-            "project": "ParserAsServiceApi",
-            "releaseDefinitionId": "3"
-        },
-        {
-            "release": "PAS Workbench",
-            "project": "ParserAsServiceApi",
-            "releaseDefinitionId": "2"
-        }
-    ]
+    {
+        "stage": "shared",
+        "releases": [
+            {
+                "release": "shared-infra",
+                "project": "shared-infra",
+                "releaseDefinitionId": "5"
+            }
+        ]
+    },
+    {
+        "stage": "helms",
+        "releases": [
+            {
+                "release": "PAS API",
+                "project": "ParserAsServiceApi",
+                "releaseDefinitionId": "3"
+            },
+            {
+                "release": "PAS Workbench",
+                "project": "ParserAsServiceApi",
+                "releaseDefinitionId": "2"
+            }
+        ]
+    }
 ]
