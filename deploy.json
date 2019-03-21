@@ -6,14 +6,47 @@
       "type": "string",
       "metadata": {
         "description": "Name of the key vault resource"
-      },
-      "defaultValue": "vpl-devops-vault"
+      }
+    },
+    "Storage Account Name": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the storage account"
+      }
     }
   },
   "variables": {
     "Get Secret App Name": "get-secret-app"
   },
   "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[parameters('Storage Account Name')]",
+      "apiVersion": "2018-07-01",
+      "location": "[resourceGroup().location]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "tags": {},
+      "properties": {
+        "supportsHttpsTrafficOnly": true,
+        "isHnsEnabled": false
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "name": "[concat(parameters('Storage Account Name'), '/default/', 'configs')]",
+      "apiVersion": "2018-07-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('Storage Account Name')) ]"
+      ],
+      "properties": {
+        "publicAccess": "Blob",
+        "metadata": {}
+      },
+      "resources": []
+    },
     {
       "name": "[variables('Get Secret App Name')]",
       "type": "Microsoft.Logic/workflows",

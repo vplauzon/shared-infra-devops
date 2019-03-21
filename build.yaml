@@ -1,5 +1,7 @@
 resources:
 - repo: self
+trigger:
+- master
 queue:
   name: Hosted Ubuntu 1604
 steps:
