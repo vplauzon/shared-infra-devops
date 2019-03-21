@@ -2,13 +2,13 @@
   "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "Vault Name": {
+    "vaultName": {
       "type": "string",
       "metadata": {
         "description": "Name of the key vault resource"
       }
     },
-    "Storage Account Name": {
+    "storageAccountName": {
       "type": "string",
       "metadata": {
         "description": "Name of the storage account"
@@ -21,7 +21,7 @@
   "resources": [
     {
       "type": "Microsoft.Storage/storageAccounts",
-      "name": "[parameters('Storage Account Name')]",
+      "name": "[parameters('storageAccountName')]",
       "apiVersion": "2018-07-01",
       "location": "[resourceGroup().location]",
       "sku": {
@@ -36,10 +36,10 @@
     },
     {
       "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-      "name": "[concat(parameters('Storage Account Name'), '/default/', 'configs')]",
+      "name": "[concat(parameters('storageAccountName'), '/default/', 'configs')]",
       "apiVersion": "2018-07-01",
       "dependsOn": [
-        "[resourceId('Microsoft.Storage/storageAccounts', parameters('Storage Account Name')) ]"
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')) ]"
       ],
       "properties": {
         "publicAccess": "Blob",
@@ -225,13 +225,13 @@
         },
         "parameters": {
           "vault-name": {
-            "value": "[parameters('Vault Name')]"
+            "value": "[parameters('vaultName')]"
           }
         }
       }
     },
     {
-      "name": "[parameters('Vault Name')]",
+      "name": "[parameters('vaultName')]",
       "type": "Microsoft.KeyVault/vaults",
       "apiVersion": "2018-02-14",
       "location": "[resourceGroup().location]",
