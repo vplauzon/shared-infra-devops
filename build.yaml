@@ -7,11 +7,12 @@ queue:
 steps:
 - task: PythonScript@@
   displayName: Create input parameters
-  scriptSource:  filePath
-  scriptPath:  create-input-parameters.py
-  arguments:
-  - deploy.parameters.json
-  - projects.json
+  inputs:
+    scriptSource:  filePath
+    scriptPath:  create-input-parameters.py
+    arguments:
+    - deploy.parameters.json
+    - projects.json
 
 - task: CopyFiles@2
   displayName: 'Copy Files to: $(Build.ArtifactStagingDirectory)/content'
