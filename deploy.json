@@ -251,6 +251,21 @@
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
+            "get-secret-app": {
+              "inputs": {
+                "body": {
+                  "secret": "pat"
+                },
+                "host": {
+                  "triggerName": "http-post",
+                  "workflow": {
+                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Secret App Name'))]"
+                  }
+                }
+              },
+              "runAfter": {},
+              "type": "Workflow"
+            },
             "response-accepted": {
               "inputs": {
                 "body": {
@@ -261,7 +276,34 @@
               "kind": "http",
               "runAfter": {},
               "type": "Response"
-            }},
+            },
+            "Project-Configuration": {
+              "inputs": "[parameters('projectConfig')]",
+              "runAfter": {
+                "get-secret-app": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Compose"
+            },
+            "For-each-stage": {
+              "actions": {
+                "For-each-release": {
+                  "actions": {},
+                  "foreach": "@items('For-each-stage')",
+                  "runAfter": {},
+                  "type": "Foreach"
+                }
+              },
+              "foreach": "@outputs('Project-Configuration')",
+              "runAfter": {
+                "Project-Configuration": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach"
+            }
+          },
           "contentVersion": "1.0.0.0",
           "outputs": {},
           "parameters": {},
