@@ -1,18 +1,21 @@
 [
     [
         {
+            "release": "shared-infra",
             "project": "shared-infra",
-            "releaseDefinitionId": "5",
-            "children": [
-                {
-                    "project": "ParserAsServiceApi",
-                    "releaseDefinitionId": "3"
-                },
-                {
-                    "project": "ParserAsServiceApi",
-                    "releaseDefinitionId": "2"
-                }
-            ]
+            "releaseDefinitionId": "5"
+        }
+    ],
+    [
+        {
+            "release": "PAS API",
+            "project": "ParserAsServiceApi",
+            "releaseDefinitionId": "3"
+        },
+        {
+            "release": "PAS Workbench",
+            "project": "ParserAsServiceApi",
+            "releaseDefinitionId": "2"
         }
     ]
 ]
