@@ -13,37 +13,45 @@
       "metadata": {
         "description": "Name of the storage account"
       }
+    },
+    "projectConfig": {
+      "type": "array",
+      "metadata": {
+        "description": "JSON Config for projects"
+      }
     }
   },
   "variables": {
-    "Get Secret App Name": "get-secret-app"
+    "Get Secret App Name": "get-secret-app",
+    "Get Projects App Name": "get-projects-app"
   },
   "resources": [
     {
-      "type": "Microsoft.Storage/storageAccounts",
-      "name": "[parameters('storageAccountName')]",
-      "apiVersion": "2018-07-01",
+      "name": "[parameters('vaultName')]",
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2018-02-14",
       "location": "[resourceGroup().location]",
-      "sku": {
-        "name": "Standard_LRS"
-      },
-      "kind": "StorageV2",
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('Get Secret App Name'))]"
+      ],
       "tags": {},
       "properties": {
-        "supportsHttpsTrafficOnly": true,
-        "isHnsEnabled": false
-      }
-    },
-    {
-      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-      "name": "[concat(parameters('storageAccountName'), '/default/', 'configs')]",
-      "apiVersion": "2018-07-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')) ]"
-      ],
-      "properties": {
-        "publicAccess": "Blob",
-        "metadata": {}
+        "tenantId": "[subscription().tenantId]",
+        "accessPolicies": [
+          {
+            "tenantId": "[reference(resourceId('Microsoft.Logic/workflows', variables('Get Secret App Name')), '2017-07-01', 'Full').identity.tenantId]",
+            "objectId": "[reference(resourceId('Microsoft.Logic/workflows', variables('Get Secret App Name')), '2017-07-01', 'Full').identity.principalId]",
+            "permissions": {
+              "secrets": [
+                "get"
+              ]
+            }
+          }
+        ],
+        "sku": {
+          "family": "A",
+          "name": "standard"
+        }
       },
       "resources": []
     },
@@ -231,33 +239,50 @@
       }
     },
     {
-      "name": "[parameters('vaultName')]",
-      "type": "Microsoft.KeyVault/vaults",
-      "apiVersion": "2018-02-14",
+      "name": "[variables('Get Projects App Name')]",
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Logic/workflows', variables('Get Secret App Name'))]"
-      ],
+      "dependsOn": [],
       "tags": {},
       "properties": {
-        "tenantId": "[subscription().tenantId]",
-        "accessPolicies": [
-          {
-            "tenantId": "[reference(resourceId('Microsoft.Logic/workflows', variables('Get Secret App Name')), '2017-07-01', 'Full').identity.tenantId]",
-            "objectId": "[reference(resourceId('Microsoft.Logic/workflows', variables('Get Secret App Name')), '2017-07-01', 'Full').identity.principalId]",
-            "permissions": {
-              "secrets": [
-                "get"
-              ]
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "actions": {
+            "Test": {
+              "inputs": "[parameters('projectConfig')]",
+              "runAfter": {
+                "HTTP": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Compose"
+            },
+            "HTTP": {
+              "inputs": {
+                "method": "GET",
+                "uri": "https://vplsharedinfradevops.blob.core.windows.net/configs/projects.json"
+              },
+              "runAfter": {},
+              "type": "Http"
+            }
+          },
+          "contentVersion": "1.0.0.0",
+          "outputs": {},
+          "parameters": {},
+          "triggers": {
+            "http-post": {
+              "inputs": {
+                "method": "GET",
+                "schema": {}
+              },
+              "kind": "Http",
+              "type": "Request"
             }
           }
-        ],
-        "sku": {
-          "family": "A",
-          "name": "standard"
-        }
-      },
-      "resources": []
+        },
+        "parameters": {}
+      }
     }
   ],
   "outputs": {
