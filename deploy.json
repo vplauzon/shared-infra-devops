@@ -609,7 +609,7 @@
                               "type": "string"
                             },
                             "releaseDefinitionId": {
-                              "type": "string"
+                              "type": "integer"
                             }
                           },
                           "required": [
@@ -633,7 +633,27 @@
             "For-each-stage": {
               "actions": {
                 "For-each-release": {
-                  "actions": {},
+                  "actions": {
+                    "create-release-app": {
+                      "inputs": {
+                        "body": {
+                          "organization": "[parameters('organization')]",
+                          "pat": "@body('Parse-pat')?['value']",
+                          "project": "@items('For-each-release')['project']",
+                          "releaseDefinitionId": "@items('For-each-release')['releaseDefinitionId']",
+                          "description": "Automation for project @items('For-each-release')['project']"
+                        },
+                        "host": {
+                          "triggerName": "http-post",
+                          "workflow": {
+                            "id": "/subscriptions/867feb0a-8313-464d-ad48-b4904383f9bc/resourceGroups/test-dev-ops/providers/Microsoft.Logic/workflows/create-release-app"
+                          }
+                        }
+                      },
+                      "runAfter": {},
+                      "type": "Workflow"
+                    }
+                  },
                   "foreach": "@items('For-each-stage')",
                   "runAfter": {},
                   "type": "Foreach"
