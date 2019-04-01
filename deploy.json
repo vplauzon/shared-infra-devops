@@ -259,7 +259,7 @@
                 "method": "POST",
                 "uri": "@{outputs('create-url')}",
                 "headers": {
-                  "Authorization": "Basic @{outputs('pat-base64')} "
+                  "Authorization": "Basic @{outputs('parse-pat-base64')} "
                 },
                 "body": {
                   "artifacts": [],
@@ -276,7 +276,7 @@
                 ]
               }
             },
-            "pat-base64": {
+            "parse-pat-base64": {
               "type": "Compose",
               "inputs": "@base64(concat(':', triggerBody()?['pat']))",
               "runAfter": {}
@@ -285,7 +285,7 @@
               "type": "Compose",
               "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/releases?api-version=5.0-preview.8",
               "runAfter": {
-                "pat-base64": [
+                "parse-pat-base64": [
                   "Succeeded"
                 ]
               }
@@ -390,7 +390,7 @@
                 "method": "GET",
                 "uri": "@{outputs('create-url')}",
                 "headers": {
-                  "Authorization": "Basic @{outputs('pat-base64')} "
+                  "Authorization": "Basic @{outputs('parse-pat-base64')} "
                 }
               },
               "runAfter": {
@@ -399,7 +399,7 @@
                 ]
               }
             },
-            "pat-base64": {
+            "parse-pat-base64": {
               "type": "Compose",
               "inputs": "@base64(concat(':', triggerBody()?['pat']))",
               "runAfter": {}
@@ -408,7 +408,7 @@
               "type": "Compose",
               "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/releases/@{triggerBody()?['releaseId']}?api-version=5.0-preview.8",
               "runAfter": {
-                "pat-base64": [
+                "parse-pat-base64": [
                   "Succeeded"
                 ]
               }
