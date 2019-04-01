@@ -541,7 +541,7 @@
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
-            "get-secret-app": {
+            "get-pat": {
               "inputs": {
                 "body": {
                   "secret": "pat"
@@ -569,7 +569,7 @@
             },
             "Parse-pat": {
               "inputs": {
-                "content": "@body('get-secret-app')",
+                "content": "@body('get-pat')",
                 "schema": {
                   "properties": {
                     "value": {
@@ -580,7 +580,7 @@
                 }
               },
               "runAfter": {
-                "get-secret-app": [
+                "get-pat": [
                   "Succeeded"
                 ]
               },
