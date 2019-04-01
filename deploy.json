@@ -632,8 +632,18 @@
             },
             "For-each-stage": {
               "actions": {
+                "current-stage": {
+                  "inputs": "@items('For-each-stage')",
+                  "runAfter": {},
+                  "type": "Compose"
+                },
                 "For-each-release": {
                   "actions": {
+                    "current-release": {
+                      "inputs": "@items('For-each-release')",
+                      "runAfter": {},
+                      "type": "Compose"
+                    },
                     "create-release-app": {
                       "inputs": {
                         "body": {
@@ -650,16 +660,24 @@
                           }
                         }
                       },
-                      "runAfter": {},
+                      "runAfter": {
+                        "current-release": [
+                          "Succeeded"
+                        ]
+                      },
                       "type": "Workflow"
                     }
                   },
-                  "foreach": "@items('For-each-stage')",
-                  "runAfter": {},
+                  "foreach": "@items('For-each-stage')['releases']",
+                  "runAfter": {
+                    "current-stage": [
+                      "Succeeded"
+                    ]
+                  },
                   "type": "Foreach"
                 }
               },
-              "foreach": "@outputs('Parse-Project-Configuration')",
+              "foreach": "@body('Parse-Project-Configuration')",
               "runAfter": {
                 "Parse-Project-Configuration": [
                   "Succeeded"
