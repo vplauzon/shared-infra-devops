@@ -254,23 +254,27 @@
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
+            "pat-base64": {
+              "type": "Compose",
+              "inputs": "@base64(concat(':', triggerBody()?['pat']))",
+              "runAfter": {}
+            },
+            "create-url": {
+              "type": "Compose",
+              "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/definitions/@{triggerBody()?['releaseDefinitionId']}?api-version=5.0",
+              "runAfter": {
+                "pat-base64": [
+                  "Succeeded"
+                ]
+              }
+            },
             "HTTP": {
               "type": "Http",
               "inputs": {
-                "method": "POST",
+                "method": "GET",
                 "uri": "@{outputs('create-url')}",
                 "headers": {
                   "Authorization": "Basic @{outputs('pat-base64')} "
-                },
-                "body": {
-                  "artifacts": [],
-                  "definitionId": "@triggerBody()?['releaseDefinitionId']",
-                  "description": "@triggerBody()?['description']",
-                  "isDraft": false,
-                  "manualEnvironments": [
-                    "@triggerBody()?['environment']"
-                  ],
-                  "reason": "none"
                 }
               },
               "runAfter": {
@@ -279,19 +283,59 @@
                 ]
               }
             },
-            "pat-base64": {
-              "type": "Compose",
-              "inputs": "@base64(concat(':', triggerBody()?['pat']))",
-              "runAfter": {}
-            },
-            "create-url": {
-              "type": "Compose",
-              "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/definitions/@{triggerBody()?['releaseId']}?api-version=5.0-preview.8",
+            "parse-response": {
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('HTTP')",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "environments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "rank": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "rank"
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
               "runAfter": {
-                "pat-base64": [
+                "HTTP": [
                   "Succeeded"
                 ]
               }
+            },
+            "project-environments": {
+              "inputs": {
+                "from": "@body('parse-response')?['environments']",
+                "select": {
+                  "id": "@item()?['id']",
+                  "name": "@item()?['name']",
+                  "rank": "@item()?['rank']"
+                }
+              },
+              "runAfter": {
+                "parse-response": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Select"
             },
             "Response-Success": {
               "type": "Response",
@@ -299,30 +343,11 @@
               "inputs": {
                 "statusCode": 200,
                 "body": {
-                  "releaseId": "@body('parse-response-id')?['id']"
+                  "environments": "@body('project-environments')"
                 }
               },
               "runAfter": {
-                "parse-response-id": [
-                  "Succeeded"
-                ]
-              }
-            },
-            "parse-response-id": {
-              "type": "ParseJson",
-              "inputs": {
-                "content": "@body('HTTP')",
-                "schema": {
-                  "properties": {
-                    "id": {
-                      "type": "integer"
-                    }
-                  },
-                  "type": "object"
-                }
-              },
-              "runAfter": {
-                "HTTP": [
+                "project-environments": [
                   "Succeeded"
                 ]
               }
@@ -422,6 +447,18 @@
                 ]
               }
             },
+            "response-failure-get-release-definition": {
+              "type": "Response",
+              "kind": "http",
+              "inputs": {
+                "statusCode": 500
+              },
+              "runAfter": {
+                "get-release-definition": [
+                  "Failed"
+                ]
+              }
+            },
             "parse-release-response": {
               "type": "ParseJson",
               "inputs": {
@@ -432,7 +469,23 @@
                     "environments": {
                       "type": "array",
                       "items": {
-                        "type": "string"
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "rank": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "rank"
+                        ]
                       }
                     }
                   }
@@ -443,6 +496,57 @@
                   "Succeeded"
                 ]
               }
+            },
+            "filter-environments": {
+              "inputs": {
+                "from": "@body('parse-release-response')?['environments']",
+                "where": "@not(equals(item()['name'], triggerBody()?['environment']))"
+              },
+              "runAfter": {
+                "parse-release-response": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Query"
+            },
+            "initialize-manual-environements": {
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "manualEnvironments",
+                    "type": "Array",
+                    "value": []
+                  }
+                ]
+              },
+              "runAfter": {
+                "parse-release-response": [
+                  "Succeeded"
+                ]
+              },
+              "type": "InitializeVariable"
+            },
+            "for-each-environment": {
+              "actions": {
+                "append-to-manual-environments": {
+                  "inputs": {
+                    "name": "manualEnvironments",
+                    "value": "@items('for-each-environment')['name']"
+                  },
+                  "runAfter": {},
+                  "type": "AppendToArrayVariable"
+                }
+              },
+              "foreach": "@body('filter-environments')",
+              "runAfter": {
+                "initialize-manual-environements": [
+                  "Succeeded"
+                ],
+                "filter-environments": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Foreach"
             },
             "HTTP": {
               "type": "Http",
@@ -458,13 +562,13 @@
                   "description": "@triggerBody()?['description']",
                   "isDraft": false,
                   "manualEnvironments": [
-                    "@triggerBody()?['environment']"
+                    "@variables('manualEnvironments')"
                   ],
                   "reason": "none"
                 }
               },
               "runAfter": {
-                "parse-release-response": [
+                "for-each-environment": [
                   "Succeeded"
                 ]
               }
@@ -503,7 +607,7 @@
                 ]
               }
             },
-            "Response-Failure": {
+            "response-failure-http": {
               "type": "Response",
               "kind": "http",
               "inputs": {
@@ -511,9 +615,6 @@
               },
               "runAfter": {
                 "HTTP": [
-                  "Failed"
-                ],
-                "get-release-definition": [
                   "Failed"
                 ]
               }
