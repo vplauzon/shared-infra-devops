@@ -266,7 +266,9 @@
                   "definitionId": "@triggerBody()?['releaseDefinitionId']",
                   "description": "@triggerBody()?['description']",
                   "isDraft": false,
-                  "manualEnvironments": null,
+                  "manualEnvironments": [
+                    "@triggerBody()?['environment']"
+                  ],
                   "reason": "none"
                 }
               },
@@ -359,6 +361,9 @@
                       "type": "integer"
                     },
                     "description": {
+                      "type": "string"
+                    },
+                    "environment": {
                       "type": "string"
                     }
                   }
@@ -650,6 +655,7 @@
                           "organization": "[parameters('organization')]",
                           "pat": "@body('Parse-pat')?['value']",
                           "project": "@items('For-each-release')['project']",
+                          "environment": "dev",
                           "releaseDefinitionId": "@items('For-each-release')['releaseDefinitionId']",
                           "description": "Automation for project @items('For-each-release')['project']"
                         },
