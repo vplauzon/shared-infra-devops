@@ -24,6 +24,7 @@
   "variables": {
     "Get Secret App Name": "get-secret-app",
     "Create Release App Name": "create-release-app",
+    "Get Release Defition App Name": "get-release-definition-app",
     "Get Release Status App Name": "get-release-status-app",
     "Rebuild Dev App Name": "rebuild-dev-app",
     "Rebuild Dev Blue App Name": "rebuild-dev-blue-app",
@@ -243,11 +244,143 @@
       }
     },
     {
-      "name": "[variables('Create Release App Name')]",
+      "name": "[variables('Get Release Defition App Name')]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
       "dependsOn": [],
+      "tags": {},
+      "properties": {
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "actions": {
+            "HTTP": {
+              "type": "Http",
+              "inputs": {
+                "method": "POST",
+                "uri": "@{outputs('create-url')}",
+                "headers": {
+                  "Authorization": "Basic @{outputs('parse-pat-base64')} "
+                },
+                "body": {
+                  "artifacts": [],
+                  "definitionId": "@triggerBody()?['releaseDefinitionId']",
+                  "description": "@triggerBody()?['description']",
+                  "isDraft": false,
+                  "manualEnvironments": [
+                    "@triggerBody()?['environment']"
+                  ],
+                  "reason": "none"
+                }
+              },
+              "runAfter": {
+                "create-url": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "parse-pat-base64": {
+              "type": "Compose",
+              "inputs": "@base64(concat(':', triggerBody()?['pat']))",
+              "runAfter": {}
+            },
+            "create-url": {
+              "type": "Compose",
+              "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/definitions/@{triggerBody()?['releaseId']}?api-version=5.0-preview.8",
+              "runAfter": {
+                "parse-pat-base64": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Response-Success": {
+              "type": "Response",
+              "kind": "http",
+              "inputs": {
+                "statusCode": 200,
+                "body": {
+                  "releaseId": "@body('parse-response-id')?['id']"
+                }
+              },
+              "runAfter": {
+                "parse-response-id": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "parse-response-id": {
+              "type": "ParseJson",
+              "inputs": {
+                "content": "@body('HTTP')",
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "runAfter": {
+                "HTTP": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Response-Failure": {
+              "type": "Response",
+              "kind": "http",
+              "inputs": {
+                "statusCode": 500
+              },
+              "runAfter": {
+                "HTTP": [
+                  "Failed"
+                ]
+              }
+            }
+          },
+          "parameters": {},
+          "triggers": {
+            "http-post": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pat": {
+                      "type": "string"
+                    },
+                    "organization": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "releaseDefinitionId": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "method": "POST"
+              }
+            }
+          },
+          "contentVersion": "1.0.0.0",
+          "outputs": {}
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "name": "[variables('Create Release App Name')]",
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2017-07-01",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('Get Release Defition App Name'))]"
+      ],
       "tags": {},
       "properties": {
         "definition": {
@@ -298,16 +431,16 @@
               "inputs": {
                 "statusCode": 200,
                 "body": {
-                  "releaseId": "@body('parse-response-head')?['id']"
+                  "releaseId": "@body('parse-response-id')?['id']"
                 }
               },
               "runAfter": {
-                "parse-response-head": [
+                "parse-response-id": [
                   "Succeeded"
                 ]
               }
             },
-            "parse-response-head": {
+            "parse-response-id": {
               "type": "ParseJson",
               "inputs": {
                 "content": "@body('HTTP')",
@@ -424,9 +557,9 @@
               "inputs": {
                 "statusCode": 200,
                 "body": {
-                  "id": "@body('parse-response-head')?['id']",
-                  "name": "@{body('parse-response-head')?['name']}",
-                  "status": "@{body('parse-response-head')?['status']}",
+                  "id": "@body('parse-response-id')?['id']",
+                  "name": "@{body('parse-response-id')?['name']}",
+                  "status": "@{body('parse-response-id')?['status']}",
                   "environments": "@body('parse-response-environments')"
                 }
               },
@@ -436,7 +569,7 @@
                 ]
               }
             },
-            "parse-response-head": {
+            "parse-response-id": {
               "type": "ParseJson",
               "inputs": {
                 "content": "@body('HTTP')",
@@ -485,7 +618,7 @@
                 }
               },
               "runAfter": {
-                "parse-response-head": [
+                "parse-response-id": [
                   "Succeeded"
                 ]
               }
