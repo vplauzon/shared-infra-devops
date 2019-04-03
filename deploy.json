@@ -937,6 +937,11 @@
                       "type": "Compose"
                     },
                     "for-each-release": {
+                      "runtimeConfiguration": {
+                        "concurrency": {
+                          "repetitions": 5
+                        }
+                      },
                       "actions": {
                         "current-release": {
                           "inputs": "@items('for-each-release')",
