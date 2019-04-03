@@ -994,11 +994,66 @@
                             ]
                           },
                           "type": "Workflow"
+                        },
+                        "parse-get-release-status": {
+                          "inputs": {
+                            "content": "@body('get-release-status')",
+                            "schema": {
+                              "properties": {
+                                "environments": {
+                                  "items": {
+                                    "properties": {
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "status"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "runAfter": {
+                            "get-release-status": [
+                              "Succeeded"
+                            ]
+                          },
+                          "type": "ParseJson"
+                        },
+                        "filter-environments": {
+                          "inputs": {
+                            "from": "@body('parse-get-release-status')?['environments']",
+                            "where": "@equals(item()?['name'], 'dev')"
+                          },
+                          "runAfter": {
+                            "parse-get-release-status": [
+                              "Succeeded"
+                            ]
+                          },
+                          "type": "Query"
+                        },
+                        "grab-status": {
+                          "inputs": "@body('filter-environments')?[0]['status']",
+                          "runAfter": {
+                            "filter-environments": [
+                              "Succeeded"
+                            ]
+                          },
+                          "type": "Compose"
                         }
                       },
-                      "expression": "@not(equals(1, 'inProgress'))",
+                      "expression": "@not(equals(outputs('grab-status'), 'inProgress'))",
                       "limit": {
-                        "count": 120,
+                        "count": 60,
                         "timeout": "PT1H"
                       },
                       "runAfter": {
@@ -1014,6 +1069,11 @@
                     "current-stage": [
                       "Succeeded"
                     ]
+                  },
+                  "runtimeConfiguration": {
+                    "concurrency": {
+                      "repetitions": 1
+                    }
                   },
                   "type": "Foreach"
                 }
