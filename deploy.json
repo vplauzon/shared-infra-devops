@@ -560,9 +560,7 @@
                   "artifacts": [],
                   "definitionId": "@triggerBody()?['releaseDefinitionId']",
                   "description": "@triggerBody()?['description']",
-                  "manualEnvironments": [
-                    "@variables('manualEnvironments')"
-                  ]
+                  "manualEnvironments": "@variables('manualEnvironments')"
                 }
               },
               "runAfter": {
@@ -710,7 +708,7 @@
                 }
               },
               "runAfter": {
-                "Compose": [
+                "parse-response-environments": [
                   "Succeeded"
                 ]
               }
@@ -765,15 +763,6 @@
               },
               "runAfter": {
                 "parse-response-id": [
-                  "Succeeded"
-                ]
-              }
-            },
-            "Compose": {
-              "type": "Compose",
-              "inputs": "",
-              "runAfter": {
-                "parse-response-environments": [
                   "Succeeded"
                 ]
               }
