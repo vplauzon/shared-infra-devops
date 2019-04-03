@@ -818,7 +818,8 @@
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
       "dependsOn": [
-        "[resourceId('Microsoft.Logic/workflows', variables('Create Release App Name'))]"
+        "[resourceId('Microsoft.Logic/workflows', variables('Create Release App Name'))]",
+        "[resourceId('Microsoft.Logic/workflows', variables('Get Release Status App Name'))]"
       ],
       "tags": {},
       "properties": {
@@ -936,7 +937,7 @@
                           "project": "@items('For-each-release')['project']",
                           "environment": "dev",
                           "releaseDefinitionId": "@items('For-each-release')['releaseDefinitionId']",
-                          "description": "Automation for project @items('For-each-release')['project']"
+                          "description": "@concat('Automation for project ', items('For-each-release')['project'])"
                         },
                         "host": {
                           "triggerName": "http-post",
@@ -970,6 +971,28 @@
                         ]
                       },
                       "type": "ParseJson"
+                    },
+                    "get-release-status": {
+                      "inputs": {
+                        "body": {
+                          "pat": "@body('Parse-pat')?['value']",
+                          "organization": "[parameters('organization')]",
+                          "project": "@items('For-each-release')['project']",
+                          "releaseId": "@body('parse-create-release')?['releaseId']"
+                        },
+                        "host": {
+                          "triggerName": "http-post",
+                          "workflow": {
+                            "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Release Status App Name'))]"
+                          }
+                        }
+                      },
+                      "runAfter": {
+                        "parse-create-release": [
+                          "Succeeded"
+                        ]
+                      },
+                      "type": "Workflow"
                     }
                   },
                   "foreach": "@items('For-each-stage')['releases']",
