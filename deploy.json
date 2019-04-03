@@ -928,7 +928,7 @@
                       "runAfter": {},
                       "type": "Compose"
                     },
-                    "create-release-app": {
+                    "create-release": {
                       "inputs": {
                         "body": {
                           "organization": "[parameters('organization')]",
@@ -951,6 +951,25 @@
                         ]
                       },
                       "type": "Workflow"
+                    },
+                    "parse-create-release": {
+                      "inputs": {
+                        "content": "@body('create-release')",
+                        "schema": {
+                          "properties": {
+                            "releaseId": {
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
+                      "runAfter": {
+                        "create-release": [
+                          "Succeeded"
+                        ]
+                      },
+                      "type": "ParseJson"
                     }
                   },
                   "foreach": "@items('For-each-stage')['releases']",
