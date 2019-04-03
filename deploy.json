@@ -1306,7 +1306,7 @@
           "outputs": {},
           "parameters": {},
           "triggers": {
-            "http-post": {
+            "http-get": {
               "inputs": {
                 "method": "GET",
                 "schema": {}
