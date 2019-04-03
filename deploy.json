@@ -560,11 +560,9 @@
                   "artifacts": [],
                   "definitionId": "@triggerBody()?['releaseDefinitionId']",
                   "description": "@triggerBody()?['description']",
-                  "isDraft": false,
                   "manualEnvironments": [
                     "@variables('manualEnvironments')"
-                  ],
-                  "reason": "none"
+                  ]
                 }
               },
               "runAfter": {
@@ -1027,6 +1025,22 @@
               },
               "runAfter": {},
               "type": "Workflow"
+            },
+            "Response": {
+              "inputs": {
+                "headers": {
+                  "Content-Type": "text/html; charset=utf-8"
+                },
+                "body": "<html><body>Request sent for blue</body></html>",
+                "statusCode": 200
+              },
+              "kind": "http",
+              "runAfter": {
+                "rebuild-dev-app": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Response"
             }
           },
           "contentVersion": "1.0.0.0",
