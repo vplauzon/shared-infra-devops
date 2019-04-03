@@ -931,7 +931,7 @@
                         "host": {
                           "triggerName": "http-post",
                           "workflow": {
-                            "id": "/subscriptions/867feb0a-8313-464d-ad48-b4904383f9bc/resourceGroups/test-dev-ops/providers/Microsoft.Logic/workflows/create-release-app"
+                            "id": "[resourceId('Microsoft.Logic/workflows', variables('Create Release App Name'))]"
                           }
                         }
                       },
@@ -961,27 +961,52 @@
                       },
                       "type": "ParseJson"
                     },
-                    "get-release-status": {
-                      "inputs": {
-                        "body": {
-                          "pat": "@body('Parse-pat')?['value']",
-                          "organization": "[parameters('organization')]",
-                          "project": "@items('For-each-release')['project']",
-                          "releaseId": "@body('parse-create-release')?['releaseId']"
+                    "until-not-in-progress": {
+                      "actions": {
+                        "delay": {
+                          "inputs": {
+                            "interval": {
+                              "count": 1,
+                              "unit": "Minute"
+                            }
+                          },
+                          "runAfter": {},
+                          "type": "Wait"
                         },
-                        "host": {
-                          "triggerName": "http-post",
-                          "workflow": {
-                            "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Release Status App Name'))]"
-                          }
+                        "get-release-status": {
+                          "inputs": {
+                            "body": {
+                              "organization": "[parameters('organization')]",
+                              "pat": "@body('Parse-pat')?['value']",
+                              "project": "@items('For-each-release')['project']",
+                              "releaseId": "@body('parse-create-release')?['releaseId']"
+                            },
+                            "host": {
+                              "triggerName": "http-post",
+                              "workflow": {
+                                "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Release Status App Name'))]"
+                              }
+                            }
+                          },
+                          "runAfter": {
+                            "delay": [
+                              "Succeeded"
+                            ]
+                          },
+                          "type": "Workflow"
                         }
+                      },
+                      "expression": "@not(equals(1, 'inProgress'))",
+                      "limit": {
+                        "count": 120,
+                        "timeout": "PT1H"
                       },
                       "runAfter": {
                         "parse-create-release": [
                           "Succeeded"
                         ]
                       },
-                      "type": "Workflow"
+                      "type": "Until"
                     }
                   },
                   "foreach": "@items('For-each-stage')['releases']",
