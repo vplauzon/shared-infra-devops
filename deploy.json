@@ -40,7 +40,7 @@
       },
       {
         "app": "rebuild-dev-app",
-        "colour": "",
+        "colour": "default",
         "env": "dev"
       },
       {
@@ -55,7 +55,7 @@
       },
       {
         "app": "rebuild-staging-app",
-        "colour": "",
+        "colour": "default",
         "env": "staging"
       }
     ]
@@ -590,7 +590,8 @@
                   "artifacts": [],
                   "definitionId": "@triggerBody()?['releaseDefinitionId']",
                   "description": "@triggerBody()?['description']",
-                  "manualEnvironments": "@variables('manualEnvironments')"
+                  "manualEnvironments": "@variables('manualEnvironments')",
+                  "variables": "@triggerBody()?['variables']"
                 }
               },
               "runAfter": {
@@ -672,6 +673,9 @@
                     },
                     "environment": {
                       "type": "string"
+                    },
+                    "variables": {
+                      "type": "object"
                     }
                   }
                 },
@@ -986,7 +990,12 @@
                               "project": "@items('for-each-release')['project']",
                               "environment": "@triggerBody()?['env']",
                               "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
-                              "description": "@concat('Automation for project ', items('for-each-release')['project'])"
+                              "description": "@concat('Automation for project ', items('for-each-release')['project'])",
+                              "variables": {
+                                "request-colour": {
+                                  "value": "@triggerBody()?['colour']"
+                                }
+                              }
                             },
                             "host": {
                               "triggerName": "http-post",
@@ -1281,7 +1290,7 @@
                 "headers": {
                   "Content-Type": "text/html; charset=utf-8"
                 },
-                "body": "<html><body>Request sent for blue</body></html>",
+                "body": "[concat('<html><body>Request sent for ', variables('Rebuild Apps')[copyIndex()].colour,'</body></html>')]",
                 "statusCode": 200
               },
               "kind": "http",
