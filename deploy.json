@@ -919,6 +919,11 @@
             },
             "for-each-stage": {
               "actions": {
+                "grab-errors": {
+                  "inputs": "@variables('errorReleases')",
+                  "runAfter": {},
+                  "type": "Compose"
+                },
                 "if-no-errors": {
                   "actions": {
                     "current-stage": {
@@ -1135,13 +1140,17 @@
                     "and": [
                       {
                         "equals": [
-                          "@empty(variables('errorReleases'))",
+                          "@empty(outputs('grab-errors'))",
                           "@true"
                         ]
                       }
                     ]
                   },
-                  "runAfter": {},
+                  "runAfter": {
+                    "grab-errors": [
+                      "Succeeded"
+                    ]
+                  },
                   "type": "If"
                 }
               },
