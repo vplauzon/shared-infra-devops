@@ -26,9 +26,39 @@
     "Create Release App Name": "create-release-app",
     "Get Release Defition App Name": "get-release-definition-app",
     "Get Release Status App Name": "get-release-status-app",
-    "Rebuild Dev App Name": "rebuild-dev-app",
-    "Rebuild Dev Blue App Name": "rebuild-dev-blue-app",
-    "Rebuild Dev Green App Name": "rebuild-dev-green-app"
+    "Rebuild Env App Name": "rebuild-env-app",
+    "Rebuild Apps": [
+      {
+        "app": "rebuild-dev-blue-app",
+        "colour": "blue",
+        "env": "dev"
+      },
+      {
+        "app": "rebuild-dev-green-app",
+        "colour": "green",
+        "env": "dev"
+      },
+      {
+        "app": "rebuild-dev-app",
+        "colour": "",
+        "env": "dev"
+      },
+      {
+        "app": "rebuild-staging-blue-app",
+        "colour": "blue",
+        "env": "staging"
+      },
+      {
+        "app": "rebuild-staging-green-app",
+        "colour": "green",
+        "env": "staging"
+      },
+      {
+        "app": "rebuild-staging-app",
+        "colour": "",
+        "env": "staging"
+      }
+    ]
   },
   "resources": [
     {
@@ -802,7 +832,7 @@
       }
     },
     {
-      "name": "[variables('Rebuild Dev App Name')]",
+      "name": "[variables('Rebuild Env App Name')]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
@@ -954,7 +984,7 @@
                               "organization": "[parameters('organization')]",
                               "pat": "@body('parse-pat')?['value']",
                               "project": "@items('for-each-release')['project']",
-                              "environment": "dev",
+                              "environment": "@triggerBody()?['env']",
                               "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
                               "description": "@concat('Automation for project ', items('for-each-release')['project'])"
                             },
@@ -1062,7 +1092,7 @@
                             "filter-environments": {
                               "inputs": {
                                 "from": "@body('parse-get-release-status')?['environments']",
-                                "where": "@equals(item()?['name'], 'dev')"
+                                "where": "@equals(item()?['name'], triggerBody()?['env'])"
                               },
                               "runAfter": {
                                 "parse-get-release-status": [
@@ -1192,10 +1222,16 @@
                 "method": "POST",
                 "schema": {
                   "properties": {
+                    "env": {
+                      "type": "string"
+                    },
                     "colour": {
                       "type": "string"
                     }
                   },
+                  "required": [
+                    "env"
+                  ],
                   "type": "object"
                 }
               },
@@ -1208,27 +1244,32 @@
       }
     },
     {
-      "name": "[variables('Rebuild Dev Blue App Name')]",
+      "name": "[variables('Rebuild Apps')[copyIndex()].app]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "copy-rebuild-apps",
+        "count": "[length(variables('Rebuild Apps'))]"
+      },
       "dependsOn": [
-        "[resourceId('Microsoft.Logic/workflows', variables('Rebuild Dev App Name'))]"
+        "[resourceId('Microsoft.Logic/workflows', variables('Rebuild Env App Name'))]"
       ],
       "tags": {},
       "properties": {
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
-            "rebuild-dev-app": {
+            "rebuild-environment": {
               "inputs": {
                 "body": {
-                  "colour": "blue"
+                  "colour": "[variables('Rebuild Apps')[copyIndex()].colour]",
+                  "env": "[variables('Rebuild Apps')[copyIndex()].env]"
                 },
                 "host": {
                   "triggerName": "http-post",
                   "workflow": {
-                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Rebuild Dev App Name'))]"
+                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Rebuild Env App Name'))]"
                   }
                 }
               },
@@ -1245,7 +1286,7 @@
               },
               "kind": "http",
               "runAfter": {
-                "rebuild-dev-app": [
+                "rebuild-environment": [
                   "Succeeded"
                 ]
               },
