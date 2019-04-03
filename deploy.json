@@ -841,7 +841,7 @@
               "runAfter": {},
               "type": "Response"
             },
-            "Parse-pat": {
+            "parse-pat": {
               "inputs": {
                 "content": "@body('get-pat')",
                 "schema": {
@@ -860,7 +860,20 @@
               },
               "type": "ParseJson"
             },
-            "Parse-Project-Configuration": {
+            "initialize-error-releases": {
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "errorReleases",
+                    "type": "Array",
+                    "value": []
+                  }
+                ]
+              },
+              "runAfter": {},
+              "type": "InitializeVariable"
+            },
+            "parse-project-configuration": {
               "inputs": {
                 "content": "[parameters('projectConfig')]",
                 "schema": {
@@ -904,190 +917,256 @@
               "runAfter": {},
               "type": "ParseJson"
             },
-            "For-each-stage": {
+            "for-each-stage": {
               "actions": {
-                "current-stage": {
-                  "inputs": "@items('For-each-stage')",
-                  "runAfter": {},
-                  "type": "Compose"
-                },
-                "For-each-release": {
+                "if-no-errors": {
                   "actions": {
-                    "current-release": {
-                      "inputs": "@items('For-each-release')",
+                    "current-stage": {
+                      "inputs": "@items('for-each-stage')",
                       "runAfter": {},
                       "type": "Compose"
                     },
-                    "create-release": {
-                      "inputs": {
-                        "body": {
-                          "organization": "[parameters('organization')]",
-                          "pat": "@body('Parse-pat')?['value']",
-                          "project": "@items('For-each-release')['project']",
-                          "environment": "dev",
-                          "releaseDefinitionId": "@items('For-each-release')['releaseDefinitionId']",
-                          "description": "@concat('Automation for project ', items('For-each-release')['project'])"
-                        },
-                        "host": {
-                          "triggerName": "http-post",
-                          "workflow": {
-                            "id": "[resourceId('Microsoft.Logic/workflows', variables('Create Release App Name'))]"
-                          }
-                        }
-                      },
-                      "runAfter": {
-                        "current-release": [
-                          "Succeeded"
-                        ]
-                      },
-                      "type": "Workflow"
-                    },
-                    "parse-create-release": {
-                      "inputs": {
-                        "content": "@body('create-release')",
-                        "schema": {
-                          "properties": {
-                            "releaseId": {
-                              "type": "integer"
-                            }
-                          },
-                          "type": "object"
-                        }
-                      },
-                      "runAfter": {
-                        "create-release": [
-                          "Succeeded"
-                        ]
-                      },
-                      "type": "ParseJson"
-                    },
-                    "until-not-in-progress": {
+                    "for-each-release": {
                       "actions": {
-                        "delay": {
-                          "inputs": {
-                            "interval": {
-                              "count": 1,
-                              "unit": "Minute"
-                            }
-                          },
+                        "current-release": {
+                          "inputs": "@items('for-each-release')",
                           "runAfter": {},
-                          "type": "Wait"
+                          "type": "Compose"
                         },
-                        "get-release-status": {
+                        "create-release": {
                           "inputs": {
                             "body": {
                               "organization": "[parameters('organization')]",
-                              "pat": "@body('Parse-pat')?['value']",
-                              "project": "@items('For-each-release')['project']",
-                              "releaseId": "@body('parse-create-release')?['releaseId']"
+                              "pat": "@body('parse-pat')?['value']",
+                              "project": "@items('for-each-release')['project']",
+                              "environment": "dev",
+                              "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
+                              "description": "@concat('Automation for project ', items('for-each-release')['project'])"
                             },
                             "host": {
                               "triggerName": "http-post",
                               "workflow": {
-                                "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Release Status App Name'))]"
+                                "id": "[resourceId('Microsoft.Logic/workflows', variables('Create Release App Name'))]"
                               }
                             }
                           },
                           "runAfter": {
-                            "delay": [
+                            "current-release": [
                               "Succeeded"
                             ]
                           },
                           "type": "Workflow"
                         },
-                        "parse-get-release-status": {
+                        "parse-create-release": {
                           "inputs": {
-                            "content": "@body('get-release-status')",
+                            "content": "@body('create-release')",
                             "schema": {
                               "properties": {
-                                "environments": {
-                                  "items": {
-                                    "properties": {
-                                      "name": {
-                                        "type": "string"
-                                      },
-                                      "status": {
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "name",
-                                      "status"
-                                    ],
-                                    "type": "object"
-                                  },
-                                  "type": "array"
+                                "releaseId": {
+                                  "type": "integer"
                                 }
                               },
                               "type": "object"
                             }
                           },
                           "runAfter": {
-                            "get-release-status": [
+                            "create-release": [
                               "Succeeded"
                             ]
                           },
                           "type": "ParseJson"
                         },
-                        "filter-environments": {
-                          "inputs": {
-                            "from": "@body('parse-get-release-status')?['environments']",
-                            "where": "@equals(item()?['name'], 'dev')"
+                        "until-not-in-progress": {
+                          "actions": {
+                            "delay": {
+                              "inputs": {
+                                "interval": {
+                                  "count": 1,
+                                  "unit": "Minute"
+                                }
+                              },
+                              "runAfter": {},
+                              "type": "Wait"
+                            },
+                            "get-release-status": {
+                              "inputs": {
+                                "body": {
+                                  "organization": "[parameters('organization')]",
+                                  "pat": "@body('parse-pat')?['value']",
+                                  "project": "@items('for-each-release')['project']",
+                                  "releaseId": "@body('parse-create-release')?['releaseId']"
+                                },
+                                "host": {
+                                  "triggerName": "http-post",
+                                  "workflow": {
+                                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Release Status App Name'))]"
+                                  }
+                                }
+                              },
+                              "runAfter": {
+                                "delay": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "type": "Workflow"
+                            },
+                            "parse-get-release-status": {
+                              "inputs": {
+                                "content": "@body('get-release-status')",
+                                "schema": {
+                                  "properties": {
+                                    "environments": {
+                                      "items": {
+                                        "properties": {
+                                          "name": {
+                                            "type": "string"
+                                          },
+                                          "status": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "name",
+                                          "status"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    }
+                                  },
+                                  "type": "object"
+                                }
+                              },
+                              "runAfter": {
+                                "get-release-status": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "type": "ParseJson"
+                            },
+                            "filter-environments": {
+                              "inputs": {
+                                "from": "@body('parse-get-release-status')?['environments']",
+                                "where": "@equals(item()?['name'], 'dev')"
+                              },
+                              "runAfter": {
+                                "parse-get-release-status": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "type": "Query"
+                            },
+                            "grab-status": {
+                              "inputs": "@body('filter-environments')?[0]['status']",
+                              "runAfter": {
+                                "filter-environments": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "type": "Compose"
+                            },
+                            "if-fail": {
+                              "actions": {
+                                "append-error": {
+                                  "inputs": {
+                                    "name": "errorReleases",
+                                    "value": "@concat(items('for-each-release')['project'], '-', items('for-each-release')['releaseDefinitionId'])"
+                                  },
+                                  "runAfter": {},
+                                  "type": "AppendToArrayVariable"
+                                }
+                              },
+                              "expression": {
+                                "or": [
+                                  {
+                                    "not": {
+                                      "equals": [
+                                        "@outputs('grab-status')",
+                                        "inProgress"
+                                      ]
+                                    }
+                                  },
+                                  {
+                                    "not": {
+                                      "equals": [
+                                        "@outputs('grab-status')",
+                                        "succeeded"
+                                      ]
+                                    }
+                                  }
+                                ]
+                              },
+                              "runAfter": {
+                                "grab-status": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "type": "If"
+                            }
+                          },
+                          "expression": "@not(equals(outputs('grab-status'), 'inProgress'))",
+                          "limit": {
+                            "count": 60,
+                            "timeout": "PT1H"
                           },
                           "runAfter": {
-                            "parse-get-release-status": [
+                            "parse-create-release": [
                               "Succeeded"
                             ]
                           },
-                          "type": "Query"
-                        },
-                        "grab-status": {
-                          "inputs": "@body('filter-environments')?[0]['status']",
-                          "runAfter": {
-                            "filter-environments": [
-                              "Succeeded"
-                            ]
-                          },
-                          "type": "Compose"
+                          "type": "Until"
                         }
                       },
-                      "expression": "@not(equals(outputs('grab-status'), 'inProgress'))",
-                      "limit": {
-                        "count": 60,
-                        "timeout": "PT1H"
-                      },
+                      "foreach": "@items('for-each-stage')['releases']",
                       "runAfter": {
-                        "parse-create-release": [
+                        "current-stage": [
                           "Succeeded"
                         ]
                       },
-                      "type": "Until"
+                      "runtimeConfiguration": {
+                        "concurrency": {
+                          "repetitions": 1
+                        }
+                      },
+                      "type": "Foreach"
                     }
                   },
-                  "foreach": "@items('For-each-stage')['releases']",
-                  "runAfter": {
-                    "current-stage": [
-                      "Succeeded"
+                  "expression": {
+                    "and": [
+                      {
+                        "equals": [
+                          "@empty(variables('errorReleases'))",
+                          "@true"
+                        ]
+                      }
                     ]
                   },
-                  "runtimeConfiguration": {
-                    "concurrency": {
-                      "repetitions": 1
-                    }
-                  },
-                  "type": "Foreach"
+                  "runAfter": {},
+                  "type": "If"
                 }
               },
-              "foreach": "@body('Parse-Project-Configuration')",
+              "foreach": "@body('parse-project-configuration')",
               "runAfter": {
-                "Parse-Project-Configuration": [
+                "parse-project-configuration": [
                   "Succeeded"
                 ],
-                "Parse-pat": [
+                "parse-pat": [
+                  "Succeeded"
+                ],
+                "initialize-error-releases": [
                   "Succeeded"
                 ]
               },
               "type": "Foreach"
+            },
+            "expose-errors": {
+              "inputs": "@variables('errorReleases')",
+              "runAfter": {
+                "for-each-stage": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Compose"
             }
           },
           "contentVersion": "1.0.0.0",
