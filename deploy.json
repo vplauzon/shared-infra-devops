@@ -24,7 +24,7 @@
   "variables": {
     "Get Secret App Name": "get-secret-app",
     "Create Release App Name": "create-release-app",
-    "Get Release Defition App Name": "get-release-definition-app",
+    "Get Release Definition App Name": "get-release-definition-app",
     "Get Release Status App Name": "get-release-status-app",
     "Rebuild Env App Name": "rebuild-env-app",
     "Rebuild Apps": [
@@ -274,7 +274,7 @@
       }
     },
     {
-      "name": "[variables('Get Release Defition App Name')]",
+      "name": "[variables('Get Release Definition App Name')]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
@@ -434,7 +434,7 @@
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
       "dependsOn": [
-        "[resourceId('Microsoft.Logic/workflows', variables('Get Release Defition App Name'))]"
+        "[resourceId('Microsoft.Logic/workflows', variables('Get Release Definition App Name'))]"
       ],
       "tags": {},
       "properties": {
@@ -466,7 +466,7 @@
                 "host": {
                   "triggerName": "http-post",
                   "workflow": {
-                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Release Defition App Name'))]"
+                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Release Definition App Name'))]"
                   }
                 }
               },
