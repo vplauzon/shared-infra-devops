@@ -24,6 +24,7 @@
   "variables": {
     "Get Secret App Name": "get-secret-app",
     "Create Release App Name": "create-release-app",
+    "Until Not In Progress App Name": "until-not-in-progress-app",
     "Get Release Definition App Name": "get-release-definition-app",
     "Get Release Status App Name": "get-release-status-app",
     "Release Env App Name": "release-env-app",
@@ -364,7 +365,7 @@
               "type": "Response",
               "kind": "http",
               "inputs": {
-                "statusCode": 500
+                "statusCode": 503
               },
               "runAfter": {
                 "HTTP": [
@@ -460,7 +461,7 @@
               "kind": "http",
               "operationOptions": "Asynchronous",
               "inputs": {
-                "statusCode": 500
+                "statusCode": 503
               },
               "runAfter": {
                 "get-release-definition": [
@@ -619,7 +620,7 @@
               "kind": "http",
               "operationOptions": "Asynchronous",
               "inputs": {
-                "statusCode": 500
+                "statusCode": 503
               },
               "runAfter": {
                 "HTTP": [
@@ -662,6 +663,210 @@
                 },
                 "method": "POST"
               }
+            }
+          },
+          "contentVersion": "1.0.0.0",
+          "outputs": {}
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "name": "[variables('Until Not In Progress App Name')]",
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2017-07-01",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [],
+      "tags": {},
+      "properties": {
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "parameters": {},
+          "triggers": {
+            "http-post": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pat": {
+                      "type": "string"
+                    },
+                    "organization": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "releaseId": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "method": "POST"
+              }
+            }
+          },
+          "actions": {
+            "pat-base64": {
+              "type": "Compose",
+              "inputs": "@base64(concat(':', triggerBody()?['pat']))",
+              "runAfter": {}
+            },
+            "until-not-in-progress": {
+              "actions": {
+                "delay": {
+                  "inputs": {
+                    "interval": {
+                      "count": 1,
+                      "unit": "Minute"
+                    }
+                  },
+                  "runAfter": {},
+                  "type": "Wait"
+                },
+                "get-release-status": {
+                  "inputs": {
+                    "body": {
+                      "organization": "@triggerBody()?['organization']",
+                      "pat": "@body('pat-base64')?['value']",
+                      "project": "@triggerBody()['project']",
+                      "releaseId": "@triggerBody()?['releaseId']"
+                    },
+                    "host": {
+                      "triggerName": "http-post",
+                      "workflow": {
+                        "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Release Status App Name'))]"
+                      }
+                    }
+                  },
+                  "runAfter": {
+                    "delay": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "Workflow"
+                },
+                "parse-get-release-status": {
+                  "inputs": {
+                    "content": "@body('get-release-status')",
+                    "schema": {
+                      "properties": {
+                        "environments": {
+                          "items": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "runAfter": {
+                    "get-release-status": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "ParseJson"
+                },
+                "filter-environments": {
+                  "inputs": {
+                    "from": "@body('parse-get-release-status')?['environments']",
+                    "where": "@equals(item()?['name'], triggerBody()?['env'])"
+                  },
+                  "runAfter": {
+                    "parse-get-release-status": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "Query"
+                },
+                "grab-status": {
+                  "inputs": "@body('filter-environments')?[0]['status']",
+                  "runAfter": {
+                    "filter-environments": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "Compose"
+                }
+              },
+              "expression": "@not(equals(outputs('grab-status'), 'inProgress'))",
+              "limit": {
+                "count": 60,
+                "timeout": "PT1H"
+              },
+              "runAfter": {
+                "pat-base64": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Until"
+            },
+            "if-success": {
+              "actions": {
+                "response-success": {
+                  "inputs": {
+                    "statusCode": 200
+                  },
+                  "kind": "http",
+                  "operationOptions": "Asynchronous",
+                  "runAfter": {},
+                  "type": "Response"
+                }
+              },
+              "else": {
+                "actions": {
+                  "response-failure": {
+                    "inputs": {
+                      "statusCode": 503
+                    },
+                    "kind": "http",
+                    "operationOptions": "Asynchronous",
+                    "runAfter": {},
+                    "type": "Response"
+                  }
+                }
+              },
+              "expression": {
+                "and": [
+                  {
+                    "not": {
+                      "equals": [
+                        "@outputs('grab-status')",
+                        "inProgress"
+                      ]
+                    }
+                  },
+                  {
+                    "not": {
+                      "equals": [
+                        "@outputs('grab-status')",
+                        "succeeded"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "runAfter": {
+                "until-not-in-progress": [
+                  "Succeeded"
+                ]
+              },
+              "type": "If"
             }
           },
           "contentVersion": "1.0.0.0",
@@ -757,7 +962,7 @@
               "type": "Response",
               "kind": "http",
               "inputs": {
-                "statusCode": 500
+                "statusCode": 503
               },
               "runAfter": {
                 "HTTP": [
