@@ -26,36 +26,14 @@
     "Create Release App Name": "create-release-app",
     "Get Release Definition App Name": "get-release-definition-app",
     "Get Release Status App Name": "get-release-status-app",
-    "Rebuild Env App Name": "rebuild-env-app",
-    "Rebuild Apps": [
+    "Release Env App Name": "release-env-app",
+    "Release Apps": [
       {
-        "app": "rebuild-dev-blue-app",
-        "colour": "blue",
+        "app": "release-dev-app",
         "env": "dev"
       },
       {
-        "app": "rebuild-dev-green-app",
-        "colour": "green",
-        "env": "dev"
-      },
-      {
-        "app": "rebuild-dev-app",
-        "colour": "default",
-        "env": "dev"
-      },
-      {
-        "app": "rebuild-staging-blue-app",
-        "colour": "blue",
-        "env": "staging"
-      },
-      {
-        "app": "rebuild-staging-green-app",
-        "colour": "green",
-        "env": "staging"
-      },
-      {
-        "app": "rebuild-staging-app",
-        "colour": "default",
+        "app": "release-staging-app",
         "env": "staging"
       }
     ]
@@ -480,6 +458,7 @@
             "response-failure-get-release-definition": {
               "type": "Response",
               "kind": "http",
+              "operationOptions": "Asynchronous",
               "inputs": {
                 "statusCode": 500
               },
@@ -603,6 +582,7 @@
             "Response-Success": {
               "type": "Response",
               "kind": "http",
+              "operationOptions": "Asynchronous",
               "inputs": {
                 "statusCode": 200,
                 "body": {
@@ -637,6 +617,7 @@
             "response-failure-http": {
               "type": "Response",
               "kind": "http",
+              "operationOptions": "Asynchronous",
               "inputs": {
                 "statusCode": 500
               },
@@ -836,7 +817,7 @@
       }
     },
     {
-      "name": "[variables('Rebuild Env App Name')]",
+      "name": "[variables('Release Env App Name')]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
@@ -872,7 +853,11 @@
                 "statusCode": 202
               },
               "kind": "http",
-              "runAfter": {},
+              "runAfter": {
+                "parse-pat": [
+                  "Succeeded"
+                ]
+              },
               "type": "Response"
             },
             "parse-pat": {
@@ -993,7 +978,7 @@
                               "description": "@concat('Automation for project ', items('for-each-release')['project'])",
                               "variables": {
                                 "request-colour": {
-                                  "value": "@triggerBody()?['colour']"
+                                  "value": "default"
                                 }
                               }
                             },
@@ -1203,7 +1188,7 @@
                 "parse-project-configuration": [
                   "Succeeded"
                 ],
-                "parse-pat": [
+                "response-accepted": [
                   "Succeeded"
                 ],
                 "initialize-error-release": [
@@ -1233,9 +1218,6 @@
                   "properties": {
                     "env": {
                       "type": "string"
-                    },
-                    "colour": {
-                      "type": "string"
                     }
                   },
                   "required": [
@@ -1253,16 +1235,16 @@
       }
     },
     {
-      "name": "[variables('Rebuild Apps')[copyIndex()].app]",
+      "name": "[variables('Release Apps')[copyIndex()].app]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
       "copy": {
         "name": "copy-rebuild-apps",
-        "count": "[length(variables('Rebuild Apps'))]"
+        "count": "[length(variables('Release Apps'))]"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Logic/workflows', variables('Rebuild Env App Name'))]"
+        "[resourceId('Microsoft.Logic/workflows', variables('Release Env App Name'))]"
       ],
       "tags": {},
       "properties": {
@@ -1272,13 +1254,12 @@
             "rebuild-environment": {
               "inputs": {
                 "body": {
-                  "colour": "[variables('Rebuild Apps')[copyIndex()].colour]",
-                  "env": "[variables('Rebuild Apps')[copyIndex()].env]"
+                  "env": "[variables('Release Apps')[copyIndex()].env]"
                 },
                 "host": {
                   "triggerName": "http-post",
                   "workflow": {
-                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Rebuild Env App Name'))]"
+                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Release Env App Name'))]"
                   }
                 }
               },
@@ -1290,7 +1271,7 @@
                 "headers": {
                   "Content-Type": "text/html; charset=utf-8"
                 },
-                "body": "[concat('<html><body>Request sent for ', variables('Rebuild Apps')[copyIndex()].colour,'</body></html>')]",
+                "body": "[concat('<html><body>Request sent for ', variables('Release Apps')[copyIndex()].env,'</body></html>')]",
                 "statusCode": 200
               },
               "kind": "http",
