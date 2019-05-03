@@ -1183,14 +1183,18 @@
                           "environment": "@triggerBody()?['env']",
                           "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
                           "description": "@concat('Automation for project ', items('for-each-release')['project'])",
-                          "variables": {
-                          }
+                          "variables": {}
                         },
                         "host": {
                           "triggerName": "http-post",
                           "workflow": {
                             "id": "[resourceId('Microsoft.Logic/workflows', variables('Create Release App Name'))]"
                           }
+                        },
+                        "retryPolicy": {
+                          "count": 2,
+                          "interval": "PT5S",
+                          "type": "fixed"
                         }
                       },
                       "runAfter": {
