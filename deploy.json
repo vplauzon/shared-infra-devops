@@ -1192,7 +1192,7 @@
                           }
                         },
                         "retryPolicy": {
-                          "count": 2,
+                          "count": 1,
                           "interval": "PT5S",
                           "type": "fixed"
                         }
