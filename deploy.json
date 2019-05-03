@@ -1184,9 +1184,6 @@
                           "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
                           "description": "@concat('Automation for project ', items('for-each-release')['project'])",
                           "variables": {
-                            "request-colour": {
-                              "value": "default"
-                            }
                           }
                         },
                         "host": {
