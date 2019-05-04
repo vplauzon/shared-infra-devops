@@ -447,6 +447,9 @@
                   "workflow": {
                     "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Release Definition App Name'))]"
                   }
+                },
+                "retryPolicy": {
+                  "type": "none"
                 }
               },
               "type": "Workflow",
@@ -603,7 +606,7 @@
               "inputs": {
                 "body": {
                   "organization": "@triggerBody()?['organization']",
-                  "pat": "@{outputs('pat-base64')}",
+                  "pat": "@triggerBody()?['pat']",
                   "project": "@triggerBody()?['project']",
                   "releaseId": "@body('parse-response-id')?['id']"
                 },
@@ -612,6 +615,9 @@
                   "workflow": {
                     "id": "[resourceId('Microsoft.Logic/workflows', variables('Until Not In Progress App Name'))]"
                   }
+                },
+                "retryPolicy": {
+                  "type": "none"
                 }
               },
               "runAfter": {
@@ -752,7 +758,7 @@
                   "inputs": {
                     "body": {
                       "organization": "@triggerBody()?['organization']",
-                      "pat": "@body('pat-base64')?['value']",
+                      "pat": "@triggerBody()?['pat']",
                       "project": "@triggerBody()['project']",
                       "releaseId": "@triggerBody()?['releaseId']"
                     },
@@ -761,6 +767,9 @@
                       "workflow": {
                         "id": "[resourceId('Microsoft.Logic/workflows', variables('Get Release Status App Name'))]"
                       }
+                    },
+                    "retryPolicy": {
+                      "type": "none"
                     }
                   },
                   "runAfter": {
@@ -1192,9 +1201,7 @@
                           }
                         },
                         "retryPolicy": {
-                          "count": 1,
-                          "interval": "PT5S",
-                          "type": "fixed"
+                          "type": "none"
                         }
                       },
                       "runAfter": {
