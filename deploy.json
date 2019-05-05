@@ -1382,6 +1382,9 @@
                   "workflow": {
                     "id": "[resourceId('Microsoft.Logic/workflows', variables('Release Env App Name'))]"
                   }
+                },
+                "retryPolicy": {
+                  "type": "none"
                 }
               },
               "runAfter": {},
