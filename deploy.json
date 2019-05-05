@@ -1136,13 +1136,13 @@
               },
               "type": "ParseJson"
             },
-            "init-isError": {
+            "init-errorProject": {
               "inputs": {
                 "variables": [
                   {
-                    "name": "isError",
-                    "type": "Boolean",
-                    "value": "@false"
+                    "name": "errorProject",
+                    "type": "String",
+                    "value": ""
                   }
                 ]
               },
@@ -1200,121 +1200,87 @@
                 }
               },
               "actions": {
-                "isError-stage": {
-                  "inputs": "@variables('isError')",
+                "current-stage": {
+                  "inputs": "@items('for-each-stage')",
                   "runAfter": {},
                   "type": "Compose"
                 },
-                "if-release-error-stage-level": {
+                "for-each-release": {
+                  "runtimeConfiguration": {
+                    "concurrency": {
+                      "repetitions": 5
+                    }
+                  },
                   "actions": {
-                    "current-stage": {
-                      "inputs": "@items('for-each-stage')",
-                      "runAfter": {},
-                      "type": "Compose"
-                    },
-                    "for-each-release": {
-                      "runtimeConfiguration": {
-                        "concurrency": {
-                          "repetitions": 5
-                        }
-                      },
+                    "if-release-error-release-level": {
                       "actions": {
-                        "isError-release": {
-                          "inputs": "@variables('isError')",
+                        "current-release": {
+                          "inputs": "@items('for-each-release')",
                           "runAfter": {},
                           "type": "Compose"
                         },
-                        "if-release-error-release-level": {
-                          "actions": {
-                            "current-release": {
-                              "inputs": "@items('for-each-release')",
-                              "runAfter": {},
-                              "type": "Compose"
+                        "create-release": {
+                          "inputs": {
+                            "body": {
+                              "organization": "[parameters('organization')]",
+                              "pat": "@body('parse-pat')?['value']",
+                              "project": "@items('for-each-release')['project']",
+                              "environment": "@triggerBody()?['env']",
+                              "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
+                              "description": "@concat('Automation for project ', items('for-each-release')['project'])",
+                              "variables": {}
                             },
-                            "create-release": {
-                              "inputs": {
-                                "body": {
-                                  "organization": "[parameters('organization')]",
-                                  "pat": "@body('parse-pat')?['value']",
-                                  "project": "@items('for-each-release')['project']",
-                                  "environment": "@triggerBody()?['env']",
-                                  "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
-                                  "description": "@concat('Automation for project ', items('for-each-release')['project'])",
-                                  "variables": {}
-                                },
-                                "host": {
-                                  "triggerName": "http-post",
-                                  "workflow": {
-                                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Deploy Release App Name'))]"
-                                  }
-                                },
-                                "retryPolicy": {
-                                  "type": "none"
-                                }
-                              },
-                              "runAfter": {
-                                "current-release": [
-                                  "Succeeded"
-                                ]
-                              },
-                              "type": "Workflow"
+                            "host": {
+                              "triggerName": "http-post",
+                              "workflow": {
+                                "id": "[resourceId('Microsoft.Logic/workflows', variables('Deploy Release App Name'))]"
+                              }
                             },
-                            "set-error": {
-                              "inputs": {
-                                "name": "isError",
-                                "value": "@true"
-                              },
-                              "runAfter": {
-                                "create-release": [
-                                  "Failed"
-                                ]
-                              },
-                              "type": "SetVariable"
+                            "retryPolicy": {
+                              "type": "none"
                             }
                           },
-                          "expression": {
-                            "and": [
-                              {
-                                "equals": [
-                                  "@outputs('isError-release')",
-                                  "@false"
-                                ]
-                              }
-                            ]
-                          },
                           "runAfter": {
-                            "isError-release": [
+                            "current-release": [
                               "Succeeded"
                             ]
                           },
-                          "type": "If"
+                          "type": "Workflow"
+                        },
+                        "set-error": {
+                          "inputs": {
+                            "name": "errorProject",
+                            "value": "@items('for-each-release')['project']"
+                          },
+                          "runAfter": {
+                            "create-release": [
+                              "Failed"
+                            ]
+                          },
+                          "type": "SetVariable"
                         }
                       },
-                      "foreach": "@items('for-each-stage')['releases']",
-                      "runAfter": {
-                        "current-stage": [
-                          "Succeeded"
+                      "expression": {
+                        "and": [
+                          {
+                            "equals": [
+                              "@variables('errorProject')",
+                              "@false"
+                            ]
+                          }
                         ]
                       },
-                      "type": "Foreach"
+                      "runAfter": {},
+                      "type": "If"
                     }
                   },
-                  "expression": {
-                    "and": [
-                      {
-                        "equals": [
-                          "@outputs('isError-stage')",
-                          "@false"
-                        ]
-                      }
-                    ]
-                  },
+                  "foreach": "@items('for-each-stage')['releases']",
                   "runAfter": {
-                    "isError-stage": [
+                    "current-stage": [
                       "Succeeded"
                     ]
                   },
-                  "type": "If"
+                  "type": "Foreach"
                 }
               },
               "foreach": "@body('parse-project-configuration')",
@@ -1322,7 +1288,7 @@
                 "parse-project-configuration": [
                   "Succeeded"
                 ],
-                "init-isError": [
+                "init-errorProject": [
                   "Succeeded"
                 ],
                 "parse-pat": [
@@ -1331,21 +1297,53 @@
               },
               "type": "Foreach"
             },
-            "response": {
-              "inputs": {
-                "body": {
-                  "value": 42
-                },
-                "statusCode": "@if(variables('isError'), 503, 200)"
+            "if-success": {
+              "actions": {
+                "response-success": {
+                  "inputs": {
+                    "body": "Done",
+                    "statusCode": "@if(equals(variables('errorProject'), ''), 503, 200)"
+                  },
+                  "kind": "http",
+                  "operationOptions": "Asynchronous",
+                  "runAfter": {},
+                  "type": "Response"
+                }
               },
-              "kind": "http",
-              "operationOptions": "Asynchronous",
+              "else": {
+                "actions": {
+                  "response-failure": {
+                    "inputs": {
+                      "body": {
+                        "failedProject": "@variables('errorProject')"
+                      },
+                      "statusCode": 503
+                    },
+                    "kind": "http",
+                    "operationOptions": "Asynchronous",
+                    "runAfter": {},
+                    "type": "Response"
+                  }
+                }
+              },
+              "expression": {
+                "and": [
+                  {
+                    "not": {
+                      "equals": [
+                        "@variables('errorProject')",
+                        ""
+                      ]
+                    }
+                  }
+                ]
+              },
               "runAfter": {
                 "for-each-stage": [
                   "Succeeded"
                 ]
               },
-              "type": "Response"
+              "type": "If"
             }
           },
           "parameters": {},
