@@ -23,7 +23,7 @@
   },
   "variables": {
     "Get Secret App Name": "get-secret-app",
-    "Create Release App Name": "create-release-app",
+    "Deploy Release App Name": "deploy-release-app",
     "Until Not In Progress App Name": "until-not-in-progress-app",
     "Get Release Definition App Name": "get-release-definition-app",
     "Get Release Status App Name": "get-release-status-app",
@@ -408,7 +408,7 @@
       }
     },
     {
-      "name": "[variables('Create Release App Name')]",
+      "name": "[variables('Deploy Release App Name')]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
@@ -419,6 +419,42 @@
       "properties": {
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "triggers": {
+            "http-post": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pat": {
+                      "type": "string"
+                    },
+                    "organization": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "releaseDefinitionId": {
+                      "type": "integer"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "environment": {
+                      "type": "string"
+                    },
+                    "variables": {
+                      "type": "object"
+                    }
+                  }
+                },
+                "method": "POST"
+              }
+            }
+          },
+          "parameters": {},
           "actions": {
             "pat-base64": {
               "type": "Compose",
@@ -608,6 +644,7 @@
                   "organization": "@triggerBody()?['organization']",
                   "pat": "@triggerBody()?['pat']",
                   "project": "@triggerBody()?['project']",
+                  "environment": "@triggerBody()?['environment']",
                   "releaseId": "@body('parse-response-id')?['id']"
                 },
                 "host": {
@@ -627,21 +664,69 @@
               },
               "type": "Workflow"
             },
-            "Response-Success": {
-              "type": "Response",
-              "kind": "http",
-              "operationOptions": "Asynchronous",
+            "parse-until": {
               "inputs": {
-                "statusCode": 200,
-                "body": {
-                  "releaseId": "@body('parse-response-id')?['id']"
+                "content": "@body('until-not-in-progress-app')",
+                "schema": {
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
                 }
               },
               "runAfter": {
                 "until-not-in-progress-app": [
                   "Succeeded"
                 ]
-              }
+              },
+              "type": "ParseJson"
+            },
+            "if-success": {
+              "actions": {
+                "response-success": {
+                  "inputs": {
+                    "body": {
+                      "releaseId": "@body('parse-response-id')?['id']"
+                    },
+                    "statusCode": 200
+                  },
+                  "kind": "http",
+                  "operationOptions": "Asynchronous",
+                  "runAfter": {},
+                  "type": "Response"
+                }
+              },
+              "else": {
+                "actions": {
+                  "response-failure-deploy": {
+                    "inputs": {
+                      "statusCode": 503
+                    },
+                    "kind": "http",
+                    "operationOptions": "Asynchronous",
+                    "runAfter": {},
+                    "type": "Response"
+                  }
+                }
+              },
+              "expression": {
+                "and": [
+                  {
+                    "equals": [
+                      "@body('parse-until')?['success']",
+                      "@true"
+                    ]
+                  }
+                ]
+              },
+              "runAfter": {
+                "parse-until": [
+                  "Succeeded"
+                ]
+              },
+              "type": "If"
             },
             "response-failure-http": {
               "type": "Response",
@@ -654,42 +739,6 @@
                 "HTTP": [
                   "Failed"
                 ]
-              }
-            }
-          },
-          "parameters": {},
-          "triggers": {
-            "http-post": {
-              "type": "Request",
-              "kind": "Http",
-              "inputs": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "pat": {
-                      "type": "string"
-                    },
-                    "organization": {
-                      "type": "string"
-                    },
-                    "project": {
-                      "type": "string"
-                    },
-                    "releaseDefinitionId": {
-                      "type": "integer"
-                    },
-                    "description": {
-                      "type": "string"
-                    },
-                    "environment": {
-                      "type": "string"
-                    },
-                    "variables": {
-                      "type": "object"
-                    }
-                  }
-                },
-                "method": "POST"
               }
             }
           },
@@ -725,6 +774,9 @@
                       "type": "string"
                     },
                     "project": {
+                      "type": "string"
+                    },
+                    "environment": {
                       "type": "string"
                     },
                     "releaseId": {
@@ -816,7 +868,7 @@
                 "filter-environments": {
                   "inputs": {
                     "from": "@body('parse-get-release-status')?['environments']",
-                    "where": "@equals(item()?['name'], triggerBody()?['env'])"
+                    "where": "@equals(item()?['name'], triggerBody()?['environment'])"
                   },
                   "runAfter": {
                     "parse-get-release-status": [
@@ -847,57 +899,21 @@
               },
               "type": "Until"
             },
-            "if-success": {
-              "actions": {
-                "response-success": {
-                  "inputs": {
-                    "statusCode": 200
-                  },
-                  "kind": "http",
-                  "operationOptions": "Asynchronous",
-                  "runAfter": {},
-                  "type": "Response"
-                }
+            "response": {
+              "inputs": {
+                "body": {
+                  "success": "@if(equals(outputs('grab-status'), 'succeeded'), true, false)"
+                },
+                "statusCode": 200
               },
-              "else": {
-                "actions": {
-                  "response-failure": {
-                    "inputs": {
-                      "statusCode": 503
-                    },
-                    "kind": "http",
-                    "operationOptions": "Asynchronous",
-                    "runAfter": {},
-                    "type": "Response"
-                  }
-                }
-              },
-              "expression": {
-                "and": [
-                  {
-                    "not": {
-                      "equals": [
-                        "@outputs('grab-status')",
-                        "inProgress"
-                      ]
-                    }
-                  },
-                  {
-                    "not": {
-                      "equals": [
-                        "@outputs('grab-status')",
-                        "succeeded"
-                      ]
-                    }
-                  }
-                ]
-              },
+              "kind": "http",
+              "operationOptions": "Asynchronous",
               "runAfter": {
                 "until-not-in-progress": [
                   "Succeeded"
                 ]
               },
-              "type": "If"
+              "type": "Response"
             }
           },
           "contentVersion": "1.0.0.0",
@@ -916,6 +932,32 @@
       "properties": {
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "triggers": {
+            "http-post": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pat": {
+                      "type": "string"
+                    },
+                    "organization": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "releaseId": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "method": "POST"
+              }
+            }
+          },
           "actions": {
             "HTTP": {
               "type": "Http",
@@ -1020,32 +1062,6 @@
             }
           },
           "parameters": {},
-          "triggers": {
-            "http-post": {
-              "type": "Request",
-              "kind": "Http",
-              "inputs": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "pat": {
-                      "type": "string"
-                    },
-                    "organization": {
-                      "type": "string"
-                    },
-                    "project": {
-                      "type": "string"
-                    },
-                    "releaseId": {
-                      "type": "integer"
-                    }
-                  }
-                },
-                "method": "POST"
-              }
-            }
-          },
           "contentVersion": "1.0.0.0",
           "outputs": {}
         },
@@ -1058,13 +1074,33 @@
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
       "dependsOn": [
-        "[resourceId('Microsoft.Logic/workflows', variables('Create Release App Name'))]",
+        "[resourceId('Microsoft.Logic/workflows', variables('Deploy Release App Name'))]",
         "[resourceId('Microsoft.Logic/workflows', variables('Get Release Status App Name'))]"
       ],
       "tags": {},
       "properties": {
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "triggers": {
+            "http-post": {
+              "inputs": {
+                "method": "POST",
+                "schema": {
+                  "properties": {
+                    "env": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "env"
+                  ],
+                  "type": "object"
+                }
+              },
+              "kind": "Http",
+              "type": "Request"
+            }
+          },
           "actions": {
             "get-pat": {
               "inputs": {
@@ -1080,21 +1116,6 @@
               },
               "runAfter": {},
               "type": "Workflow"
-            },
-            "response-accepted": {
-              "inputs": {
-                "body": {
-                  "value": 42
-                },
-                "statusCode": 202
-              },
-              "kind": "http",
-              "runAfter": {
-                "parse-pat": [
-                  "Succeeded"
-                ]
-              },
-              "type": "Response"
             },
             "parse-pat": {
               "inputs": {
@@ -1114,6 +1135,34 @@
                 ]
               },
               "type": "ParseJson"
+            },
+            "response-accepted": {
+              "inputs": {
+                "body": {
+                  "value": 42
+                },
+                "statusCode": 202
+              },
+              "kind": "http",
+              "runAfter": {
+                "parse-pat": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Response"
+            },
+            "init-isError": {
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "isError",
+                    "type": "Boolean",
+                    "value": "@false"
+                  }
+                ]
+              },
+              "runAfter": {},
+              "type": "InitializeVariable"
             },
             "parse-project-configuration": {
               "inputs": {
@@ -1166,64 +1215,99 @@
                 }
               },
               "actions": {
-                "current-stage": {
-                  "inputs": "@items('for-each-stage')",
-                  "runAfter": {},
-                  "type": "Compose"
-                },
-                "for-each-release": {
-                  "runtimeConfiguration": {
-                    "concurrency": {
-                      "repetitions": 5
-                    }
-                  },
+                "if-release-error-stage-level": {
                   "actions": {
-                    "current-release": {
-                      "inputs": "@items('for-each-release')",
+                    "current-stage": {
+                      "inputs": "@items('for-each-stage')",
                       "runAfter": {},
                       "type": "Compose"
                     },
-                    "create-release": {
-                      "inputs": {
-                        "body": {
-                          "organization": "[parameters('organization')]",
-                          "pat": "@body('parse-pat')?['value']",
-                          "project": "@items('for-each-release')['project']",
-                          "environment": "@triggerBody()?['env']",
-                          "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
-                          "description": "@concat('Automation for project ', items('for-each-release')['project'])",
-                          "variables": {}
-                        },
-                        "host": {
-                          "triggerName": "http-post",
-                          "workflow": {
-                            "id": "[resourceId('Microsoft.Logic/workflows', variables('Create Release App Name'))]"
-                          }
-                        },
-                        "retryPolicy": {
-                          "type": "none"
+                    "for-each-release": {
+                      "runtimeConfiguration": {
+                        "concurrency": {
+                          "repetitions": 5
                         }
                       },
+                      "actions": {
+                        "if-release-error-release-level": {
+                          "actions": {
+                            "current-release": {
+                              "inputs": "@items('for-each-release')",
+                              "runAfter": {},
+                              "type": "Compose"
+                            },
+                            "create-release": {
+                              "inputs": {
+                                "body": {
+                                  "organization": "[parameters('organization')]",
+                                  "pat": "@body('parse-pat')?['value']",
+                                  "project": "@items('for-each-release')['project']",
+                                  "environment": "@triggerBody()?['env']",
+                                  "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
+                                  "description": "@concat('Automation for project ', items('for-each-release')['project'])",
+                                  "variables": {}
+                                },
+                                "host": {
+                                  "triggerName": "http-post",
+                                  "workflow": {
+                                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Deploy Release App Name'))]"
+                                  }
+                                },
+                                "retryPolicy": {
+                                  "type": "none"
+                                }
+                              },
+                              "runAfter": {
+                                "current-release": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "type": "Workflow"
+                            }
+                          },
+                          "expression": {
+                            "and": [
+                              {
+                                "equals": [
+                                  "@variables('isError')",
+                                  "@false"
+                                ]
+                              }
+                            ]
+                          },
+                          "runAfter": {},
+                          "type": "If"
+                        }
+                      },
+                      "foreach": "@items('for-each-stage')['releases']",
                       "runAfter": {
-                        "current-release": [
+                        "current-stage": [
                           "Succeeded"
                         ]
                       },
-                      "type": "Workflow"
+                      "type": "Foreach"
                     }
                   },
-                  "foreach": "@items('for-each-stage')['releases']",
-                  "runAfter": {
-                    "current-stage": [
-                      "Succeeded"
+                  "expression": {
+                    "and": [
+                      {
+                        "equals": [
+                          "@variables('isError')",
+                          "@false"
+                        ]
+                      }
                     ]
                   },
-                  "type": "Foreach"
+                  "runAfter": {},
+                  "type": "If"
                 }
               },
               "foreach": "@body('parse-project-configuration')",
               "runAfter": {
                 "parse-project-configuration": [
+                  "Succeeded"
+                ],
+                "init-isError": [
                   "Succeeded"
                 ],
                 "response-accepted": [
@@ -1233,29 +1317,9 @@
               "type": "Foreach"
             }
           },
-          "contentVersion": "1.0.0.0",
-          "outputs": {},
           "parameters": {},
-          "triggers": {
-            "http-post": {
-              "inputs": {
-                "method": "POST",
-                "schema": {
-                  "properties": {
-                    "env": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "env"
-                  ],
-                  "type": "object"
-                }
-              },
-              "kind": "Http",
-              "type": "Request"
-            }
-          }
+          "contentVersion": "1.0.0.0",
+          "outputs": {}
         },
         "parameters": {}
       }
