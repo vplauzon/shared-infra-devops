@@ -1136,21 +1136,6 @@
               },
               "type": "ParseJson"
             },
-            "response-accepted": {
-              "inputs": {
-                "body": {
-                  "value": 42
-                },
-                "statusCode": 202
-              },
-              "kind": "http",
-              "runAfter": {
-                "parse-pat": [
-                  "Succeeded"
-                ]
-              },
-              "type": "Response"
-            },
             "init-isError": {
               "inputs": {
                 "variables": [
@@ -1215,6 +1200,11 @@
                 }
               },
               "actions": {
+                "isError-stage": {
+                  "inputs": "@variables('isError')",
+                  "runAfter": {},
+                  "type": "Compose"
+                },
                 "if-release-error-stage-level": {
                   "actions": {
                     "current-stage": {
@@ -1229,6 +1219,11 @@
                         }
                       },
                       "actions": {
+                        "isError-release": {
+                          "inputs": "@variables('isError')",
+                          "runAfter": {},
+                          "type": "Compose"
+                        },
                         "if-release-error-release-level": {
                           "actions": {
                             "current-release": {
@@ -1263,19 +1258,35 @@
                                 ]
                               },
                               "type": "Workflow"
+                            },
+                            "set-error": {
+                              "inputs": {
+                                "name": "isError",
+                                "value": "@true"
+                              },
+                              "runAfter": {
+                                "create-release": [
+                                  "Failed"
+                                ]
+                              },
+                              "type": "SetVariable"
                             }
                           },
                           "expression": {
                             "and": [
                               {
                                 "equals": [
-                                  "@variables('isError')",
+                                  "@outputs('isError-release')",
                                   "@false"
                                 ]
                               }
                             ]
                           },
-                          "runAfter": {},
+                          "runAfter": {
+                            "isError-release": [
+                              "Succeeded"
+                            ]
+                          },
                           "type": "If"
                         }
                       },
@@ -1292,13 +1303,17 @@
                     "and": [
                       {
                         "equals": [
-                          "@variables('isError')",
+                          "@outputs('isError-stage')",
                           "@false"
                         ]
                       }
                     ]
                   },
-                  "runAfter": {},
+                  "runAfter": {
+                    "isError-stage": [
+                      "Succeeded"
+                    ]
+                  },
                   "type": "If"
                 }
               },
@@ -1310,11 +1325,27 @@
                 "init-isError": [
                   "Succeeded"
                 ],
-                "response-accepted": [
+                "parse-pat": [
                   "Succeeded"
                 ]
               },
               "type": "Foreach"
+            },
+            "response": {
+              "inputs": {
+                "body": {
+                  "value": 42
+                },
+                "statusCode": "@if(variables('isError'), 503, 200)"
+              },
+              "kind": "http",
+              "operationOptions": "Asynchronous",
+              "runAfter": {
+                "for-each-stage": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Response"
             }
           },
           "parameters": {},
