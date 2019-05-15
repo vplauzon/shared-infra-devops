@@ -24,7 +24,7 @@
   "variables": {
     "Get Secret App Name": "get-secret-app",
     "Deploy Release App Name": "deploy-release-app",
-    "Start Release Environment App Name": "start-release-environment-app",
+    "Approve Release App Name": "approve-release-app",
     "Until Not In Progress App Name": "until-not-in-progress-app",
     "Get Release Definition App Name": "get-release-definition-app",
     "Get Release Status App Name": "get-release-status-app",
@@ -421,11 +421,14 @@
       }
     },
     {
-      "name": "[variables('Start Release Environment App Name')]",
+      "name": "[variables('Approve Release App Name')]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
-      "dependsOn": [],
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('Get Release Definition App Name'))]",
+        "[resourceId('Microsoft.Logic/workflows', variables('Until Not In Progress App Name'))]"
+      ],
       "tags": {},
       "properties": {
         "definition": {
@@ -447,11 +450,14 @@
                     "project": {
                       "type": "string"
                     },
-                    "releaseId": {
+                    "releaseDefinitionId": {
                       "type": "integer"
                     },
-                    "environmentId": {
-                      "type": "integer"
+                    "description": {
+                      "type": "string"
+                    },
+                    "environment": {
+                      "type": "string"
                     }
                   }
                 },
@@ -466,57 +472,191 @@
               "inputs": "@base64(concat(':', triggerBody()?['pat']))",
               "runAfter": {}
             },
-            "create-url": {
-              "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/Release/releases/@{triggerBody()?['releaseId']}/environments/@{triggerBody()?['environmentId']}?api-version=5.0-preview.6",
-              "runAfter": {},
-              "type": "Compose"
+            "create-url-list-approvals": {
+              "type": "Compose",
+              "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/approvals?api-version=5.0",
+              "runAfter": {
+                "pat-base64": [
+                  "Succeeded"
+                ]
+              }
             },
-            "patch-release-environment": {
+            "HTTP-list-approvals": {
               "inputs": {
-                "method": "PATCH",
-                "uri": "@{outputs('create-url')}",
+                "method": "GET",
+                "uri": "@{outputs('create-url-list-approvals')}",
                 "headers": {
                   "Authorization": "Basic @{outputs('pat-base64')} "
-                },
-                "body": {
-                  "status": "scheduled"
                 }
               },
               "runAfter": {
-                "create-url": [
-                  "Succeeded"
-                ],
-                "pat-base64": [
+                "create-url-list-approvals": [
                   "Succeeded"
                 ]
               },
               "type": "Http"
             },
-            "response-success": {
+            "parse-list-approvals-response": {
               "inputs": {
-                "statusCode": 200
+                "content": "@body('HTTP-list-approvals')",
+                "schema": {
+                  "properties": {
+                    "value": {
+                      "items": {
+                        "properties": {
+                          "approvalType": {
+                            "type": "string"
+                          },
+                          "createdOn": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "integer"
+                          },
+                          "modifiedOn": {
+                            "type": "string"
+                          },
+                          "releaseDefinition": {
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "approvalType",
+                          "createdOn",
+                          "modifiedOn",
+                          "status",
+                          "releaseDefinition"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
               },
-              "kind": "http",
-              "operationOptions": "Asynchronous",
               "runAfter": {
-                "patch-release-environment": [
+                "HTTP-list-approvals": [
                   "Succeeded"
                 ]
               },
-              "type": "Response"
+              "type": "ParseJson"
             },
-            "response-failure": {
+            "filter-release-definition": {
               "inputs": {
-                "statusCode": 500
+                "from": "@body('parse-list-approvals-response')?['value']",
+                "where": "@equals(item()?['releaseDefinition']?['id'], triggerBody()?['releaseDefinitionId'])"
               },
-              "kind": "http",
-              "operationOptions": "Asynchronous",
               "runAfter": {
-                "patch-release-environment": [
-                  "Failed"
+                "parse-list-approvals-response": [
+                  "Succeeded"
                 ]
               },
-              "type": "Response"
+              "type": "Query"
+            },
+            "if-has-approval": {
+              "actions": {
+                "approvalId": {
+                  "inputs": "@body('filter-release-definition')[0]['id']",
+                  "runAfter": {},
+                  "type": "Compose"
+                },
+                "create-url-update-approval": {
+                  "type": "Compose",
+                  "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/approvals/@{outputs('approvalId')}?api-version=5.0",
+                  "runAfter": {
+                    "approvalId": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "HTTP-update-approval": {
+                  "inputs": {
+                    "method": "PATCH",
+                    "uri": "@{outputs('create-url-update-approval')}",
+                    "body": {
+                      "status": "approved",
+                      "comments": "Approved by Logic App Automation"
+                    },
+                    "headers": {
+                      "Authorization": "Basic @{outputs('pat-base64')} "
+                    }
+                  },
+                  "runAfter": {
+                    "create-url-update-approval": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "Http"
+                },
+                "response-fail-approval-failure": {
+                  "inputs": {
+                    "body": "Approval Failed",
+                    "statusCode": 500
+                  },
+                  "kind": "http",
+                  "operationOptions": "Asynchronous",
+                  "runAfter": {
+                    "HTTP-update-approval": [
+                      "Failed"
+                    ]
+                  },
+                  "type": "Response"
+                },
+                "response-success": {
+                  "inputs": {
+                    "body": "Success",
+                    "statusCode": 200
+                  },
+                  "kind": "http",
+                  "operationOptions": "Asynchronous",
+                  "runAfter": {
+                    "HTTP-update-approval": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "Response"
+                }
+              },
+              "else": {
+                "actions": {
+                  "response-fail-no-approval": {
+                    "inputs": {
+                      "body": "No Approval found",
+                      "statusCode": 404
+                    },
+                    "kind": "http",
+                    "operationOptions": "Asynchronous",
+                    "runAfter": {},
+                    "type": "Response"
+                  }
+                }
+              },
+              "expression": {
+                "and": [
+                  {
+                    "greaterOrEquals": [
+                      "@length(body('filter-release-definition'))",
+                      1
+                    ]
+                  }
+                ]
+              },
+              "runAfter": {
+                "filter-release-definition": [
+                  "Succeeded"
+                ]
+              },
+              "type": "If"
             }
           },
           "contentVersion": "1.0.0.0",
@@ -807,47 +947,31 @@
               },
               "type": "Query"
             },
-            "if-not-started": {
-              "actions": {
-                "start-release-environment": {
-                  "inputs": {
-                    "body": {
-                      "organization": "@triggerBody()?['organization']",
-                      "pat": "@triggerBody()?['pat']",
-                      "project": "@triggerBody()?['project']",
-                      "releaseId": "@body('parse-create-release-response')?['id']",
-                      "environmentId": "@body('filter-environment-status')[0]['id']"
-                    },
-                    "host": {
-                      "triggerName": "http-post",
-                      "workflow": {
-                        "id": "[resourceId('Microsoft.Logic/workflows', variables('Start Release Environment App Name'))]"
-                      }
-                    },
-                    "retryPolicy": {
-                      "type": "none"
-                    }
-                  },
-                  "runAfter": {},
-                  "type": "Workflow"
-                }
-              },
-              "expression": {
-                "and": [
-                  {
-                    "equals": [
-                      "@body('filter-environment-status')[0]['status']",
-                      "notStarted"
-                    ]
+            "approve-release": {
+              "inputs": {
+                "body": {
+                  "organization": "@triggerBody()?['organization']",
+                  "pat": "@triggerBody()?['pat']",
+                  "project": "@triggerBody()?['project']",
+                  "releaseId": "@body('parse-create-release-response')?['id']",
+                  "environmentId": "@body('filter-environment-status')[0]['id']"
+                },
+                "host": {
+                  "triggerName": "http-post",
+                  "workflow": {
+                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Approve Release App Name'))]"
                   }
-                ]
+                },
+                "retryPolicy": {
+                  "type": "none"
+                }
               },
               "runAfter": {
                 "filter-environment-status": [
                   "Succeeded"
                 ]
               },
-              "type": "If"
+              "type": "Workflow"
             },
             "until-not-in-progress-app": {
               "inputs": {
@@ -869,7 +993,7 @@
                 }
               },
               "runAfter": {
-                "if-not-started": [
+                "approve-release": [
                   "Succeeded"
                 ]
               },
