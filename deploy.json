@@ -458,6 +458,9 @@
                     "environment": {
                       "type": "string"
                     },
+                    "colour": {
+                      "type": "string"
+                    },
                     "variables": {
                       "type": "object"
                     }
@@ -473,15 +476,6 @@
               "type": "Compose",
               "inputs": "@base64(concat(':', triggerBody()?['pat']))",
               "runAfter": {}
-            },
-            "create-url": {
-              "type": "Compose",
-              "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/releases?api-version=5.0-preview.8",
-              "runAfter": {
-                "pat-base64": [
-                  "Succeeded"
-                ]
-              }
             },
             "get-release-definition": {
               "inputs": {
@@ -503,7 +497,7 @@
               },
               "type": "Workflow",
               "runAfter": {
-                "create-url": [
+                "pat-base64": [
                   "Succeeded"
                 ]
               }
@@ -521,7 +515,16 @@
                 ]
               }
             },
-            "parse-release-response": {
+            "create-release-url": {
+              "type": "Compose",
+              "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/releases?api-version=5.0-preview.8",
+              "runAfter": {
+                "get-release-definition": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "parse-get-release-response": {
               "type": "ParseJson",
               "inputs": {
                 "content": "@body('get-release-definition')",
@@ -561,11 +564,11 @@
             },
             "filter-environments": {
               "inputs": {
-                "from": "@body('parse-release-response')?['environments']",
+                "from": "@body('parse-get-release-response')?['environments']",
                 "where": "@not(equals(item()['name'], triggerBody()?['environment']))"
               },
               "runAfter": {
-                "parse-release-response": [
+                "parse-get-release-response": [
                   "Succeeded"
                 ]
               },
@@ -582,7 +585,7 @@
                 ]
               },
               "runAfter": {
-                "parse-release-response": [
+                "parse-get-release-response": [
                   "Succeeded"
                 ]
               },
@@ -610,11 +613,11 @@
               },
               "type": "Foreach"
             },
-            "HTTP": {
+            "create-release": {
               "type": "Http",
               "inputs": {
                 "method": "POST",
-                "uri": "@{outputs('create-url')}",
+                "uri": "@{outputs('create-release-url')}",
                 "headers": {
                   "Authorization": "Basic @{outputs('pat-base64')} "
                 },
@@ -629,27 +632,97 @@
               "runAfter": {
                 "for-each-environment": [
                   "Succeeded"
+                ],
+                "create-release-url": [
+                  "Succeeded"
                 ]
               }
             },
-            "parse-response-id": {
+            "response-failure-http": {
+              "type": "Response",
+              "kind": "http",
+              "operationOptions": "Asynchronous",
+              "inputs": {
+                "statusCode": 503
+              },
+              "runAfter": {
+                "create-release": [
+                  "Failed"
+                ]
+              }
+            },
+            "parse-create-release-response": {
               "type": "ParseJson",
               "inputs": {
-                "content": "@body('HTTP')",
+                "content": "@body('create-release')",
                 "schema": {
                   "properties": {
-                    "id": {
-                      "type": "integer"
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "environments": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ]
+                        }
+                      }
                     }
                   },
                   "type": "object"
                 }
               },
               "runAfter": {
-                "HTTP": [
+                "create-release": [
                   "Succeeded"
                 ]
               }
+            },
+            "filter-environment-status": {
+              "inputs": {
+                "from": "@body('parse-get-release-response')?['environments']",
+                "where": "@equals(item()['name'], triggerBody()?['environment'])"
+              },
+              "runAfter": {
+                "parse-create-release-response": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Query"
+            },
+            "if-not-started": {
+              "actions": {},
+              "expression": {
+                "and": [
+                  {
+                    "equals": [
+                      "@body('filter-environment-status')['status']",
+                      "notStarted"
+                    ]
+                  }
+                ]
+              },
+              "runAfter": {
+                "filter-environment-status": [
+                  "Succeeded"
+                ]
+              },
+              "type": "If"
             },
             "until-not-in-progress-app": {
               "inputs": {
@@ -658,7 +731,7 @@
                   "pat": "@triggerBody()?['pat']",
                   "project": "@triggerBody()?['project']",
                   "environment": "@triggerBody()?['environment']",
-                  "releaseId": "@body('parse-response-id')?['id']"
+                  "releaseId": "@body('parse-create-release-response')?['id']"
                 },
                 "host": {
                   "triggerName": "http-post",
@@ -671,13 +744,13 @@
                 }
               },
               "runAfter": {
-                "parse-response-id": [
+                "if-not-started": [
                   "Succeeded"
                 ]
               },
               "type": "Workflow"
             },
-            "parse-until": {
+            "parse-until-response": {
               "inputs": {
                 "content": "@body('until-not-in-progress-app')",
                 "schema": {
@@ -701,7 +774,7 @@
                 "response-success": {
                   "inputs": {
                     "body": {
-                      "releaseId": "@body('parse-response-id')?['id']"
+                      "releaseId": "@body('parse-create-release-response')?['id']"
                     },
                     "statusCode": 200
                   },
@@ -728,31 +801,18 @@
                 "and": [
                   {
                     "equals": [
-                      "@body('parse-until')?['success']",
+                      "@body('parse-until-response')?['success']",
                       "@true"
                     ]
                   }
                 ]
               },
               "runAfter": {
-                "parse-until": [
+                "parse-until-response": [
                   "Succeeded"
                 ]
               },
               "type": "If"
-            },
-            "response-failure-http": {
-              "type": "Response",
-              "kind": "http",
-              "operationOptions": "Asynchronous",
-              "inputs": {
-                "statusCode": 503
-              },
-              "runAfter": {
-                "HTTP": [
-                  "Failed"
-                ]
-              }
             }
           },
           "contentVersion": "1.0.0.0",
@@ -1104,6 +1164,9 @@
                   "properties": {
                     "env": {
                       "type": "string"
+                    },
+                    "colour": {
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -1241,6 +1304,7 @@
                               "pat": "@body('parse-pat')?['value']",
                               "project": "@items('for-each-release')['project']",
                               "environment": "@triggerBody()?['env']",
+                              "colour": "@triggerBody()?['colour']",
                               "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
                               "description": "@concat('Automation for project ', items('for-each-release')['project'])",
                               "variables": {}
