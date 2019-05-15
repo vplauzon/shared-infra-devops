@@ -24,6 +24,7 @@
   "variables": {
     "Get Secret App Name": "get-secret-app",
     "Deploy Release App Name": "deploy-release-app",
+    "Approve Release App Name": "approve-release-app",
     "Until Not In Progress App Name": "until-not-in-progress-app",
     "Get Release Definition App Name": "get-release-definition-app",
     "Get Release Status App Name": "get-release-status-app",
@@ -750,6 +751,95 @@
       }
     },
     {
+      "name": "[variables('Approve Release App Name')]",
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2017-07-01",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Logic/workflows', variables('Get Release Definition App Name'))]",
+        "[resourceId('Microsoft.Logic/workflows', variables('Until Not In Progress App Name'))]"
+      ],
+      "tags": {},
+      "properties": {
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "triggers": {
+            "http-post": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pat": {
+                      "type": "string"
+                    },
+                    "organization": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "releaseDefinitionId": {
+                      "type": "integer"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "environment": {
+                      "type": "string"
+                    },
+                    "colour": {
+                      "type": "string"
+                    },
+                    "variables": {
+                      "type": "object"
+                    }
+                  }
+                },
+                "method": "POST"
+              }
+            }
+          },
+          "parameters": {},
+          "actions": {
+            "pat-base64": {
+              "type": "Compose",
+              "inputs": "@base64(concat(':', triggerBody()?['pat']))",
+              "runAfter": {}
+            },
+            "create-url-list-approvals": {
+              "type": "Compose",
+              "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/approvals?api-version=5.0",
+              "runAfter": {
+                "pat-base64": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "HTTP-list-approvals": {
+              "inputs": {
+                "method": "GET",
+                "uri": "@{outputs('create-url-list-approvals')}",
+                "headers": {
+                  "Authorization": "Basic @{outputs('pat-base64')} "
+                }
+              },
+              "runAfter": {
+                "create-url-list-approvals": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Http"
+            }
+          },
+          "contentVersion": "1.0.0.0",
+          "outputs": {}
+        },
+        "parameters": {}
+      }
+    },
+    {
       "name": "[variables('Until Not In Progress App Name')]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
@@ -1078,6 +1168,7 @@
       "location": "[resourceGroup().location]",
       "dependsOn": [
         "[resourceId('Microsoft.Logic/workflows', variables('Deploy Release App Name'))]",
+        "[resourceId('Microsoft.Logic/workflows', variables('Approve Release App Name'))]",
         "[resourceId('Microsoft.Logic/workflows', variables('Get Secret App Name'))]"
       ],
       "tags": {},
