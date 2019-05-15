@@ -34,8 +34,8 @@
         "env": "dev"
       },
       {
-        "app": "release-staging-app",
-        "env": "staging"
+        "app": "release-prod-app",
+        "env": "prod"
       }
     ]
   },
