@@ -655,6 +655,7 @@
       "location": "[resourceGroup().location]",
       "dependsOn": [
         "[resourceId('Microsoft.Logic/workflows', variables('Get Release Definition App Name'))]",
+        "[resourceId('Microsoft.Logic/workflows', variables('Approve Release App Name'))]",
         "[resourceId('Microsoft.Logic/workflows', variables('Until Not In Progress App Name'))]"
       ],
       "tags": {},
@@ -937,7 +938,7 @@
                   "organization": "@triggerBody()?['organization']",
                   "project": "@triggerBody()?['project']",
                   "releaseId": "@body('parse-create-release-response')?['id']",
-                  "environment": "triggerBody()?['environment']"
+                  "environment": "@triggerBody()?['environment']"
                 },
                 "host": {
                   "triggerName": "http-post",
