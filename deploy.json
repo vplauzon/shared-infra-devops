@@ -1222,45 +1222,64 @@
                           "runAfter": {},
                           "type": "Compose"
                         },
-                        "create-release": {
-                          "inputs": {
-                            "body": {
-                              "organization": "[parameters('organization')]",
-                              "pat": "@body('parse-pat')?['value']",
-                              "project": "@items('for-each-release')['project']",
-                              "environment": "@triggerBody()?['env']",
-                              "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
-                              "description": "@concat('Automation for project ', items('for-each-release')['project'])",
-                              "variables": {}
-                            },
-                            "host": {
-                              "triggerName": "http-post",
-                              "workflow": {
-                                "id": "[resourceId('Microsoft.Logic/workflows', variables('Deploy Release App Name'))]"
+                        "if-prod": {
+                          "actions": {},
+                          "else": {
+                            "actions": {
+                              "create-release": {
+                                "inputs": {
+                                  "body": {
+                                    "organization": "[parameters('organization')]",
+                                    "pat": "@body('parse-pat')?['value']",
+                                    "project": "@items('for-each-release')['project']",
+                                    "environment": "@triggerBody()?['env']",
+                                    "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
+                                    "description": "@concat('Automation for project ', items('for-each-release')['project'])",
+                                    "variables": {}
+                                  },
+                                  "host": {
+                                    "triggerName": "http-post",
+                                    "workflow": {
+                                      "id": "[resourceId('Microsoft.Logic/workflows', variables('Deploy Release App Name'))]"
+                                    }
+                                  },
+                                  "retryPolicy": {
+                                    "type": "none"
+                                  }
+                                },
+                                "runAfter": {},
+                                "type": "Workflow"
+                              },
+                              "set-error": {
+                                "inputs": {
+                                  "name": "errorProject",
+                                  "value": "@items('for-each-release')['project']"
+                                },
+                                "runAfter": {
+                                  "create-release": [
+                                    "Failed"
+                                  ]
+                                },
+                                "type": "SetVariable"
                               }
-                            },
-                            "retryPolicy": {
-                              "type": "none"
                             }
+                          },
+                          "expression": {
+                            "and": [
+                              {
+                                "equals": [
+                                  "@triggerBody()?['env']",
+                                  "prod"
+                                ]
+                              }
+                            ]
                           },
                           "runAfter": {
                             "current-release": [
                               "Succeeded"
                             ]
                           },
-                          "type": "Workflow"
-                        },
-                        "set-error": {
-                          "inputs": {
-                            "name": "errorProject",
-                            "value": "@items('for-each-release')['project']"
-                          },
-                          "runAfter": {
-                            "create-release": [
-                              "Failed"
-                            ]
-                          },
-                          "type": "SetVariable"
+                          "type": "If"
                         }
                       },
                       "expression": {
