@@ -905,6 +905,62 @@
                   "inputs": "@body('filter-release-definition')[0]['id']",
                   "runAfter": {},
                   "type": "Compose"
+                },
+                "create-url-update-approval": {
+                  "type": "Compose",
+                  "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/release/approvals/@{outputs('approvalId')}?api-version=5.0",
+                  "runAfter": {
+                    "approvalId": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "HTTP-update-approval": {
+                  "inputs": {
+                    "method": "PATCH",
+                    "uri": "@{outputs('create-url-update-approval')}",
+                    "body": {
+                      "status": "approved",
+                      "comments": "Approved by Logic App Automation"
+                    },
+                    "headers": {
+                      "Authorization": "Basic @{outputs('pat-base64')} "
+                    }
+                  },
+                  "runAfter": {
+                    "create-url-update-approval": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "Http"
+                },
+                "response-fail-approval-failure": {
+                  "inputs": {
+                    "body": "Approval Failed",
+                    "statusCode": 500
+                  },
+                  "kind": "http",
+                  "operationOptions": "Asynchronous",
+                  "runAfter": {
+                    "HTTP-update-approval": [
+                      "Failed"
+                    ]
+                  },
+                  "type": "Response"
+                },
+                "response-success": {
+                  "inputs": {
+                    "body": "Success",
+                    "statusCode": 200
+                  },
+                  "kind": "http",
+                  "operationOptions": "Asynchronous",
+                  "runAfter": {
+                    "HTTP-update-approval": [
+                      "Succeeded"
+                    ]
+                  },
+                  "type": "Response"
                 }
               },
               "else": {
@@ -915,6 +971,7 @@
                       "statusCode": 404
                     },
                     "kind": "http",
+                    "operationOptions": "Asynchronous",
                     "runAfter": {},
                     "type": "Response"
                   }
