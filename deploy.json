@@ -900,7 +900,26 @@
               "type": "Query"
             },
             "if-has-approval": {
-              "actions": {},
+              "actions": {
+                "approvalId": {
+                  "inputs": "@body('filter-release-definition')[0]['id']",
+                  "runAfter": {},
+                  "type": "Compose"
+                }
+              },
+              "else": {
+                "actions": {
+                  "response-fail-no-approval": {
+                    "inputs": {
+                      "body": "No Approval found",
+                      "statusCode": 404
+                    },
+                    "kind": "http",
+                    "runAfter": {},
+                    "type": "Response"
+                  }
+                }
+              },
               "expression": {
                 "and": [
                   {
