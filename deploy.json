@@ -425,10 +425,7 @@
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
       "location": "[resourceGroup().location]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Logic/workflows', variables('Get Release Definition App Name'))]",
-        "[resourceId('Microsoft.Logic/workflows', variables('Until Not In Progress App Name'))]"
-      ],
+      "dependsOn": [],
       "tags": {},
       "properties": {
         "definition": {
@@ -450,11 +447,8 @@
                     "project": {
                       "type": "string"
                     },
-                    "releaseDefinitionId": {
+                    "releaseId": {
                       "type": "integer"
-                    },
-                    "description": {
-                      "type": "string"
                     },
                     "environment": {
                       "type": "string"
@@ -481,7 +475,7 @@
                 ]
               }
             },
-            "HTTP-list-approvals": {
+            "list-approvals": {
               "inputs": {
                 "method": "GET",
                 "uri": "@{outputs('create-url-list-approvals')}",
@@ -498,25 +492,13 @@
             },
             "parse-list-approvals-response": {
               "inputs": {
-                "content": "@body('HTTP-list-approvals')",
+                "content": "@body('list-approvals')",
                 "schema": {
                   "properties": {
                     "value": {
                       "items": {
                         "properties": {
-                          "approvalType": {
-                            "type": "string"
-                          },
-                          "createdOn": {
-                            "type": "string"
-                          },
-                          "id": {
-                            "type": "integer"
-                          },
-                          "modifiedOn": {
-                            "type": "string"
-                          },
-                          "releaseDefinition": {
+                          "release": {
                             "properties": {
                               "id": {
                                 "type": "integer"
@@ -524,17 +506,18 @@
                             },
                             "type": "object"
                           },
-                          "status": {
-                            "type": "string"
+                          "releaseEnvironment": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
                           }
                         },
                         "required": [
-                          "id",
-                          "approvalType",
-                          "createdOn",
-                          "modifiedOn",
-                          "status",
-                          "releaseDefinition"
+                          "release",
+                          "releaseEnvironment"
                         ],
                         "type": "object"
                       },
@@ -545,7 +528,7 @@
                 }
               },
               "runAfter": {
-                "HTTP-list-approvals": [
+                "list-approvals": [
                   "Succeeded"
                 ]
               },
@@ -554,7 +537,7 @@
             "filter-release-definition": {
               "inputs": {
                 "from": "@body('parse-list-approvals-response')?['value']",
-                "where": "@equals(item()?['releaseDefinition']?['id'], triggerBody()?['releaseDefinitionId'])"
+                "where": "@and(equals(item()?['release']?['id'], triggerBody()?['releaseId']), equals(item()?['releaseEnvironment']?['name'], triggerBody()?['environment']))"
               },
               "runAfter": {
                 "parse-list-approvals-response": [
@@ -579,7 +562,7 @@
                     ]
                   }
                 },
-                "HTTP-update-approval": {
+                "update-approval": {
                   "inputs": {
                     "method": "PATCH",
                     "uri": "@{outputs('create-url-update-approval')}",
@@ -606,13 +589,13 @@
                   "kind": "http",
                   "operationOptions": "Asynchronous",
                   "runAfter": {
-                    "HTTP-update-approval": [
+                    "update-approval": [
                       "Failed"
                     ]
                   },
                   "type": "Response"
                 },
-                "response-success": {
+                "response-success-approval": {
                   "inputs": {
                     "body": "Success",
                     "statusCode": 200
@@ -620,7 +603,7 @@
                   "kind": "http",
                   "operationOptions": "Asynchronous",
                   "runAfter": {
-                    "HTTP-update-approval": [
+                    "update-approval": [
                       "Succeeded"
                     ]
                   },
@@ -629,10 +612,10 @@
               },
               "else": {
                 "actions": {
-                  "response-fail-no-approval": {
+                  "response-success-no-approval": {
                     "inputs": {
                       "body": "No Approval found",
-                      "statusCode": 404
+                      "statusCode": 200
                     },
                     "kind": "http",
                     "operationOptions": "Asynchronous",
@@ -950,11 +933,11 @@
             "approve-release": {
               "inputs": {
                 "body": {
-                  "organization": "@triggerBody()?['organization']",
                   "pat": "@triggerBody()?['pat']",
+                  "organization": "@triggerBody()?['organization']",
                   "project": "@triggerBody()?['project']",
                   "releaseId": "@body('parse-create-release-response')?['id']",
-                  "environmentId": "@body('filter-environment-status')[0]['id']"
+                  "environment": "triggerBody()?['environment']"
                 },
                 "host": {
                   "triggerName": "http-post",
