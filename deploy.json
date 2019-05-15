@@ -1371,7 +1371,19 @@
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
-            "rebuild-environment": {
+            "response-success": {
+              "inputs": {
+                "body": "[concat('<html><body>Request sent for ', variables('Release Apps')[copyIndex()].env, '</body></html>')]",
+                "headers": {
+                  "Content-Type": "text/html; charset=utf-8"
+                },
+                "statusCode": 200
+              },
+              "kind": "Http",
+              "runAfter": {},
+              "type": "Response"
+            },
+            "release-env-app": {
               "inputs": {
                 "body": {
                   "env": "[variables('Release Apps')[copyIndex()].env]"
@@ -1386,39 +1398,12 @@
                   "type": "none"
                 }
               },
-              "runAfter": {},
-              "type": "Workflow"
-            },
-            "response-success": {
-              "inputs": {
-                "body": "<html><body>Request sent for dev</body></html>",
-                "headers": {
-                  "Content-Type": "text/html; charset=utf-8"
-                },
-                "statusCode": 200
-              },
-              "kind": "Http",
-              "operationOptions": "Asynchronous",
               "runAfter": {
-                "rebuild-environment": [
+                "response-success": [
                   "Succeeded"
                 ]
               },
-              "type": "Response"
-            },
-            "response-failure": {
-              "inputs": {
-                "body": "@body('rebuild-environment')",
-                "statusCode": 503
-              },
-              "kind": "http",
-              "operationOptions": "Asynchronous",
-              "runAfter": {
-                "rebuild-environment": [
-                  "Failed"
-                ]
-              },
-              "type": "Response"
+              "type": "Workflow"
             }
           },
           "contentVersion": "1.0.0.0",
