@@ -831,6 +831,92 @@
                 ]
               },
               "type": "Http"
+            },
+            "parse-list-approvals-response": {
+              "inputs": {
+                "content": "@body('HTTP-list-approvals')",
+                "schema": {
+                  "properties": {
+                    "value": {
+                      "items": {
+                        "properties": {
+                          "approvalType": {
+                            "type": "string"
+                          },
+                          "createdOn": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "integer"
+                          },
+                          "modifiedOn": {
+                            "type": "string"
+                          },
+                          "releaseDefinition": {
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "approvalType",
+                          "createdOn",
+                          "modifiedOn",
+                          "status",
+                          "releaseDefinition"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "runAfter": {
+                "HTTP-list-approvals": [
+                  "Succeeded"
+                ]
+              },
+              "type": "ParseJson"
+            },
+            "filter-release-definition": {
+              "inputs": {
+                "from": "@body('parse-list-approvals-response')?['value']",
+                "where": "@equals(item()?['releaseDefinition']?['id'], triggerBody()?['releaseDefinitionId'])"
+              },
+              "runAfter": {
+                "parse-list-approvals-response": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Query"
+            },
+            "if-has-approval": {
+              "actions": {},
+              "expression": {
+                "and": [
+                  {
+                    "greaterOrEquals": [
+                      "@length(body('filter-release-definition'))",
+                      1
+                    ]
+                  }
+                ]
+              },
+              "runAfter": {
+                "filter-release-definition": [
+                  "Succeeded"
+                ]
+              },
+              "type": "If"
             }
           },
           "contentVersion": "1.0.0.0",
@@ -1314,7 +1400,32 @@
                           "type": "Compose"
                         },
                         "if-prod": {
-                          "actions": {},
+                          "actions": {
+                            "approve-release": {
+                              "inputs": {
+                                "body": {
+                                  "organization": "[parameters('organization')]",
+                                  "pat": "@body('parse-pat')?['value']",
+                                  "project": "@items('for-each-release')['project']",
+                                  "environment": "@triggerBody()?['env']",
+                                  "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
+                                  "description": "@concat('Automation for project ', items('for-each-release')['project'])",
+                                  "variables": {}
+                                },
+                                "host": {
+                                  "triggerName": "http-post",
+                                  "workflow": {
+                                    "id": "[resourceId('Microsoft.Logic/workflows', variables('Approve Release App Name'))]"
+                                  }
+                                },
+                                "retryPolicy": {
+                                  "type": "none"
+                                }
+                              },
+                              "runAfter": {},
+                              "type": "Workflow"
+                            }
+                          },
                           "else": {
                             "actions": {
                               "create-release": {
