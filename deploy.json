@@ -24,6 +24,7 @@
   "variables": {
     "Get Secret App Name": "get-secret-app",
     "Deploy Release App Name": "deploy-release-app",
+    "Start Release Environment App Name": "start-release-environment-app",
     "Until Not In Progress App Name": "until-not-in-progress-app",
     "Get Release Definition App Name": "get-release-definition-app",
     "Get Release Status App Name": "get-release-status-app",
@@ -420,6 +421,111 @@
       }
     },
     {
+      "name": "[variables('Start Release Environment App Name')]",
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2017-07-01",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [],
+      "tags": {},
+      "properties": {
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "triggers": {
+            "http-post": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pat": {
+                      "type": "string"
+                    },
+                    "organization": {
+                      "type": "string"
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "releaseId": {
+                      "type": "integer"
+                    },
+                    "environmentId": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "method": "POST"
+              }
+            }
+          },
+          "parameters": {},
+          "actions": {
+            "pat-base64": {
+              "type": "Compose",
+              "inputs": "@base64(concat(':', triggerBody()?['pat']))",
+              "runAfter": {}
+            },
+            "create-url": {
+              "inputs": "https://vsrm.dev.azure.com/@{triggerBody()?['organization']}/@{triggerBody()?['project']}/_apis/Release/releases/@{triggerBody()?['releaseId']}/environments/@{triggerBody()?['environmentId']}?api-version=5.0-preview.6",
+              "runAfter": {},
+              "type": "Compose"
+            },
+            "patch-release-environment": {
+              "inputs": {
+                "method": "PATCH",
+                "uri": "@{outputs('create-url')}",
+                "headers": {
+                  "Authorization": "Basic @{outputs('pat-base64')} "
+                },
+                "body": {
+                  "status": "scheduled"
+                }
+              },
+              "runAfter": {
+                "create-url": [
+                  "Succeeded"
+                ],
+                "pat-base64": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Http"
+            },
+            "response-success": {
+              "inputs": {
+                "statusCode": 200
+              },
+              "kind": "http",
+              "operationOptions": "Asynchronous",
+              "runAfter": {
+                "patch-release-environment": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Response"
+            },
+            "response-failure": {
+              "inputs": {
+                "statusCode": 500
+              },
+              "kind": "http",
+              "operationOptions": "Asynchronous",
+              "runAfter": {
+                "patch-release-environment": [
+                  "Failed"
+                ]
+              },
+              "type": "Response"
+            }
+          },
+          "contentVersion": "1.0.0.0",
+          "outputs": {}
+        },
+        "parameters": {}
+      }
+    },
+    {
       "name": "[variables('Deploy Release App Name')]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2017-07-01",
@@ -456,9 +562,6 @@
                       "type": "string"
                     },
                     "environment": {
-                      "type": "string"
-                    },
-                    "colour": {
                       "type": "string"
                     },
                     "variables": {
@@ -656,35 +759,34 @@
               "inputs": {
                 "content": "@body('create-release')",
                 "schema": {
+                  "type": "object",
                   "properties": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "integer"
-                      },
-                      "environments": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": "string"
-                            },
-                            "status": {
-                              "type": "string"
-                            },
-                            "id": {
-                              "type": "integer"
-                            }
+                    "id": {
+                      "type": "integer"
+                    },
+                    "environments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
                           },
-                          "required": [
-                            "status"
-                          ]
-                        }
+                          "name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "status"
+                        ]
                       }
                     }
-                  },
-                  "type": "object"
+                  }
                 }
               },
               "runAfter": {
@@ -695,7 +797,7 @@
             },
             "filter-environment-status": {
               "inputs": {
-                "from": "@body('parse-get-release-response')?['environments']",
+                "from": "@body('parse-create-release-response')?['environments']",
                 "where": "@equals(item()['name'], triggerBody()?['environment'])"
               },
               "runAfter": {
@@ -706,12 +808,35 @@
               "type": "Query"
             },
             "if-not-started": {
-              "actions": {},
+              "actions": {
+                "start-release-environment": {
+                  "inputs": {
+                    "body": {
+                      "organization": "@triggerBody()?['organization']",
+                      "pat": "@triggerBody()?['pat']",
+                      "project": "@triggerBody()?['project']",
+                      "releaseId": "@body('parse-create-release-response')?['id']",
+                      "environmentId": "@body('filter-environment-status')[0]['id']"
+                    },
+                    "host": {
+                      "triggerName": "http-post",
+                      "workflow": {
+                        "id": "[resourceId('Microsoft.Logic/workflows', variables('Start Release Environment App Name'))]"
+                      }
+                    },
+                    "retryPolicy": {
+                      "type": "none"
+                    }
+                  },
+                  "runAfter": {},
+                  "type": "Workflow"
+                }
+              },
               "expression": {
                 "and": [
                   {
                     "equals": [
-                      "@body('filter-environment-status')['status']",
+                      "@body('filter-environment-status')[0]['status']",
                       "notStarted"
                     ]
                   }
@@ -1304,10 +1429,13 @@
                               "pat": "@body('parse-pat')?['value']",
                               "project": "@items('for-each-release')['project']",
                               "environment": "@triggerBody()?['env']",
-                              "colour": "@triggerBody()?['colour']",
                               "releaseDefinitionId": "@items('for-each-release')['releaseDefinitionId']",
                               "description": "@concat('Automation for project ', items('for-each-release')['project'])",
-                              "variables": {}
+                              "variables": {
+                                "colour-request": {
+                                  "value": "@triggerBody()?['colour']"
+                                }
+                              }
                             },
                             "host": {
                               "triggerName": "http-post",
@@ -1450,7 +1578,8 @@
             "release-env-app": {
               "inputs": {
                 "body": {
-                  "env": "[variables('Release Apps')[copyIndex()].env]"
+                  "env": "[variables('Release Apps')[copyIndex()].env]",
+                  "colour": "[variables('Release Apps')[copyIndex()].colour]"
                 },
                 "host": {
                   "triggerName": "http-post",
