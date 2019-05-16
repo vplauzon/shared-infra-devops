@@ -1560,7 +1560,7 @@
           "actions": {
             "response-success": {
               "inputs": {
-                "body": "[concat('<html><body>Request sent for ', variables('Release Apps')[copyIndex()].env, '</body></html>')]",
+                "body": "[concat('<html><body>Request sent for ', variables('Release Apps')[copyIndex()].env, ' in ', variables('Release Apps')[copyIndex()].colour, '</body></html>')]",
                 "headers": {
                   "Content-Type": "text/html; charset=utf-8"
                 },
