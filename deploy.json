@@ -41,14 +41,9 @@
         "colour": "default"
       },
       {
-        "app": "release-prod-blue-app",
+        "app": "release-prod-alternate-app",
         "env": "prod",
-        "colour": "blue"
-      },
-      {
-        "app": "release-prod-green-app",
-        "env": "prod",
-        "colour": "green"
+        "colour": "alternate"
       }
     ]
   },
